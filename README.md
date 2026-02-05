@@ -8,21 +8,21 @@ Full-stack Catan app with:
 
 ## Repo layout
 
-- `backend/` – FastAPI app (`catan_backend`) with SQLAlchemy models and Pydantic schemas.
+- `backend/` – FastAPI app (`app` package) with SQLAlchemy models and Pydantic schemas.
 - `frontend/` – React (Vite) app with a Supabase-powered login/sign up screen.
 - `supabase/` – Database migrations (SQL) for Supabase Postgres.
 - `.github/workflows/ci-cd.yml` – CI/CD workflow for tests, migrations, and Vercel deployment.
 
 ## Backend (FastAPI + Supabase Postgres)
 
-- Package: `catan_backend`
-- Entry point: `catan_backend.main:create_app`
+- Package: `app`
+- Entry point: `app.main:create_app`
 - Key files:
-  - `backend/catan_backend/config.py` – loads `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, etc.
-  - `backend/catan_backend/db.py` – SQLAlchemy engine/session setup.
-  - `backend/catan_backend/models.py` – `User` and `GameSession` ORM models.
-  - `backend/catan_backend/schemas.py` – Pydantic schemas for users and game sessions.
-  - `backend/catan_backend/main.py` – FastAPI app with basic health, user, and session endpoints.
+  - `backend/app/config.py` – loads `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, etc.
+  - `backend/app/db.py` – SQLAlchemy engine/session setup.
+  - `backend/app/models.py` – `User` and `GameSession` ORM models.
+  - `backend/app/schemas.py` – Pydantic schemas for users and game sessions.
+  - `backend/app/main.py` – FastAPI app with basic health, user, and session endpoints.
 
 ### Backend setup with `.venv`
 
@@ -40,10 +40,12 @@ Then run the backend:
 
 ```bash
 export DATABASE_URL="postgresql://user:password@host:5432/dbname"  # Supabase DB URL
-uvicorn catan_backend.main:create_app --factory --reload
+uvicorn app.main:create_app --factory --reload
 ```
 
 ## Frontend (React + Supabase Auth, Vite, Vercel)
+
+- Production deployment (live): `https://catan-bot.vercel.app/`
 
 - React app under `frontend/`:
   - `src/lib/supabaseClient.ts` – Supabase JS client.
@@ -90,7 +92,7 @@ Workflow: `.github/workflows/ci-cd.yml`
 - On push to `main`:
   - Runs backend tests (Python) in `backend/`.
   - Builds frontend (Node) in `frontend/`.
-  - Applies Supabase migrations via `supabase db push`.
+  - Applies Supabase migrations via `supabase db push` (CLI uses `supabase/` symlink to `database/`).
   - Deploys the frontend to Vercel (production).
 
 ### Required GitHub secrets

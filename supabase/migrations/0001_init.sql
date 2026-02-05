@@ -16,4 +16,3 @@ create table if not exists public.game_sessions (
 );
 
 create index if not exists game_sessions_user_id_idx on public.game_sessions (user_id);
-

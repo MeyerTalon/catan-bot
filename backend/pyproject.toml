@@ -20,8 +20,8 @@ dependencies = [
 ]
 
 [project.scripts]
-catan-backend = "catan_backend.main:run"
+catan-backend = "app.main:run"
 
 [tool.setuptools]
-packages = ["catan_backend"]
+packages = ["app"]
 

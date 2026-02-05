@@ -2,16 +2,22 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, AnyUrl
+from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Load backend/.env so env vars are available without exporting manually.
+_backend_dir = Path(__file__).resolve().parent.parent
+load_dotenv(_backend_dir / ".env")
 
 
 class Settings(BaseModel):
     """Application settings loaded from environment variables."""
 
-    database_url: AnyUrl
-    supabase_project_url: Optional[AnyUrl] = None
+    database_url: str
+    supabase_project_url: Optional[str] = None
     supabase_anon_key: Optional[str] = None
     supabase_service_role_key: Optional[str] = None
     environment: str = "development"
@@ -33,16 +39,19 @@ def get_settings() -> Settings:
       - SUPABASE_SERVICE_ROLE_KEY: Service role key (optional, backend-only).
       - ENVIRONMENT: "development" | "production"
     """
-
-    database_url = os.environ.get("DATABASE_URL")
+    
+    database_url = os.environ.get("SUPABASE_DATABASE_URL")
     if not database_url:
-        raise RuntimeError("DATABASE_URL environment variable must be set.")
+        raise RuntimeError("SUPABASE_DATABASE_URL environment variable must be set.")
+    if database_url.strip().lower().startswith("https://"):
+        raise RuntimeError(
+            "SUPABASE_DATABASE_URL must be a Postgres connection string (e.g. postgresql://... or postgresql+psycopg2://...), "
+            "not the Supabase project URL (https://...). Get the DB URL from Supabase: Project Settings → Database → Connection string."
+        )
 
     return Settings(
         database_url=database_url,
-        supabase_project_url=os.environ.get("SUPABASE_URL"),
         supabase_anon_key=os.environ.get("SUPABASE_ANON_KEY"),
-        supabase_service_role_key=os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
         environment=os.environ.get("ENVIRONMENT", "development"),
     )
 
