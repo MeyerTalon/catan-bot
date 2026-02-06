@@ -23,7 +23,8 @@ backend/
 │   ├── main.py        # FastAPI app factory (create_app), routes, run()
 │   ├── models.py      # ORM: User, GameSession
 │   └── schemas.py     # Pydantic: UserCreate/UserRead, GameSessionCreate/GameSessionRead
-├── pyproject.toml     # Package definition and dependencies
+├── pyproject.toml     # Poetry project and dependencies
+├── poetry.lock        # Locked dependency versions (commit to repo)
 └── README.md          # This file
 ```
 
@@ -61,17 +62,16 @@ Configure these in `backend/.env` (or your environment). The app loads `backend/
 
 ## How to use
 
-### 1. Use the project virtualenv
+### 1. Install dependencies with Poetry
 
-From the repo root, use the shared `.venv` (see root README):
+Install [Poetry](https://python-poetry.org/docs/#installation) if needed, then from the **backend** directory:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
-pip install --upgrade pip
 cd backend
-pip install -e .
+poetry install
 ```
+
+This creates a virtualenv (by default under `backend/.venv` or in Poetry’s cache) and installs dependencies. Use `poetry run` to run commands in that environment, or `poetry shell` to activate it.
 
 ### 2. Set environment variables
 
@@ -85,9 +85,16 @@ Use the **Postgres** connection string from Supabase (Project Settings → Datab
 
 ### 3. Run the server
 
-From the **backend** directory (with `.venv` activated):
+From the **backend** directory:
 
 ```bash
+poetry run uvicorn app.main:create_app --factory --reload
+```
+
+Or activate the Poetry shell first, then run uvicorn:
+
+```bash
+poetry shell
 uvicorn app.main:create_app --factory --reload
 ```
 
@@ -95,21 +102,15 @@ uvicorn app.main:create_app --factory --reload
 - OpenAPI docs: `http://localhost:8000/docs`
 - Reload: code changes restart the server automatically.
 
-### 4. Run from repo root
+### 4. Run the backend script
 
-With `.venv` activated and from repo root:
-
-```bash
-cd backend && uvicorn app.main:create_app --factory --reload
-```
-
-Or run the installed script (if configured in `pyproject.toml`):
+From **backend**:
 
 ```bash
-catan-backend
+poetry run catan-backend
 ```
 
-(Ensure the script entry point in `pyproject.toml` points at the correct module path, e.g. `app.main:run`.)
+That invokes the `catan-backend` entry point defined in `pyproject.toml` (`app.main:run`).
 
 ## Database and migrations
 
@@ -120,4 +121,4 @@ catan-backend
 
 - Google-style docstrings for modules, classes, and functions.
 - Type hints on all public functions and important variables.
-- Prefer the project `.venv`; do not install into the global Python environment.
+- Use Poetry for the backend; do not install backend deps into the global Python environment.

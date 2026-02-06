@@ -1,3 +1,8 @@
+"""Application configuration loaded from environment variables.
+
+Loads backend/.env automatically. Use get_settings() for a cached Settings instance.
+"""
+
 from __future__ import annotations
 
 import os
@@ -14,7 +19,15 @@ load_dotenv(_backend_dir / ".env")
 
 
 class Settings(BaseModel):
-    """Application settings loaded from environment variables."""
+    """Application settings loaded from environment variables.
+
+    Attributes:
+        database_url: Postgres connection string (Supabase). Required.
+        supabase_project_url: Supabase project URL. Optional, mainly for frontend.
+        supabase_anon_key: Supabase anon key. Optional, mainly for frontend.
+        supabase_service_role_key: Supabase service role key. Optional, backend-only.
+        environment: "development" or "production". Defaults to "development".
+    """
 
     database_url: str
     supabase_project_url: Optional[str] = None
@@ -24,20 +37,26 @@ class Settings(BaseModel):
 
     @property
     def is_production(self) -> bool:
+        """Whether the current environment is production.
+
+        Returns:
+            True if environment is "production" (case-insensitive), else False.
+        """
         return self.environment.lower() == "production"
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """
-    Load settings from environment.
+    """Load settings from environment.
 
-    Expected environment variables:
-      - DATABASE_URL: Postgres connection string (Supabase).
-      - SUPABASE_URL: Supabase project URL (optional, mainly for frontend).
-      - SUPABASE_ANON_KEY: Supabase anon key (optional, mainly for frontend).
-      - SUPABASE_SERVICE_ROLE_KEY: Service role key (optional, backend-only).
-      - ENVIRONMENT: "development" | "production"
+    Loads from os.environ and backend/.env. Requires SUPABASE_DATABASE_URL to be
+    set and to be a Postgres connection string (not the Supabase project HTTPS URL).
+
+    Returns:
+        Cached Settings instance with database_url, optional Supabase keys, and environment.
+
+    Raises:
+        RuntimeError: If SUPABASE_DATABASE_URL is missing or starts with https://.
     """
     
     database_url = os.environ.get("SUPABASE_DATABASE_URL")

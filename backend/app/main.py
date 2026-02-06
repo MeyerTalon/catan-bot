@@ -99,7 +99,7 @@ def create_app() -> FastAPI:
 
 def run() -> None:
     uvicorn.run(
-        "catan_backend.main:create_app",
+        "app.main:create_app",
         factory=True,
         host="0.0.0.0",
         port=8000,

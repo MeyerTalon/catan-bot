@@ -24,24 +24,24 @@ Full-stack Catan app with:
   - `backend/app/schemas.py` – Pydantic schemas for users and game sessions.
   - `backend/app/main.py` – FastAPI app with basic health, user, and session endpoints.
 
-### Backend setup with `.venv`
+### Backend setup with Poetry
 
-From the repo root:
+Install [Poetry](https://python-poetry.org/docs/#installation), then from the repo:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
-pip install --upgrade pip
 cd backend
-pip install -e .
+poetry install
 ```
 
 Then run the backend:
 
 ```bash
-export DATABASE_URL="postgresql://user:password@host:5432/dbname"  # Supabase DB URL
-uvicorn app.main:create_app --factory --reload
+cd backend
+export SUPABASE_DATABASE_URL="postgresql://user:password@host:5432/dbname"  # Supabase DB URL
+poetry run uvicorn app.main:create_app --factory --reload
 ```
+
+See `backend/README.md` for full backend docs.
 
 ## Frontend (React + Supabase Auth, Vite, Vercel)
 
@@ -106,12 +106,11 @@ Workflow: `.github/workflows/ci-cd.yml`
 
 LLM-driven Catan bot that uses `gpt-oss` via [Ollama](https://ollama.com/) to choose moves from a structured game state.
 
-The project is written in Python and is designed to be run inside a dedicated Conda environment (see `environment.yml`).
+The project is written in Python and is designed to be run inside a dedicated Python virtual environment (`.venv` at the repo root).
 
 ## Prerequisites
 
-- **Conda** (e.g. Miniconda or Anaconda)
-- **Python** 3.11 (handled by the Conda env)
+- **Python** 3.11+
 - **Ollama** installed locally and running
   - Install Ollama from the official site.
   - Make sure the `gpt-oss` model is available:
@@ -121,22 +120,18 @@ The project is written in Python and is designed to be run inside a dedicated Co
 
 By default, this project expects Ollama's OpenAI-compatible HTTP API to be available at `http://localhost:11434`.
 
-## Setup (Conda environment)
+## Setup (Python venv)
 
 From the project root:
 
 ```bash
-conda env create -f environment.yml -n catan-bot
-conda activate catan-bot
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -e .
 ```
 
-If the environment already exists and you update dependencies, you can run:
-
-```bash
-conda env update -f environment.yml -n catan-bot
-```
-
-You can also install the package in editable mode (optional but recommended for development):
+If the environment already exists and you update dependencies, re-run from the repo root:
 
 ```bash
 pip install -e .
@@ -144,10 +139,10 @@ pip install -e .
 
 ## Running the bot (sample game state)
 
-Once the environment is active and Ollama is running with the `gpt-oss` model available:
+Once the environment is active (`.venv` activated) and Ollama is running with the `gpt-oss` model available:
 
 ```bash
-conda activate catan-bot
+source .venv/bin/activate   # if not already active
 catan-bot choose-move
 ```
 

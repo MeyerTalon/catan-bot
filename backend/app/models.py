@@ -1,3 +1,8 @@
+"""SQLAlchemy ORM models for users and game sessions.
+
+Aligns with database/migrations schema. User id mirrors Supabase auth.users.
+"""
+
 from __future__ import annotations
 
 import uuid
@@ -10,11 +15,16 @@ from .db import Base
 
 
 class User(Base):
-    """
-    Application-level user profile.
+    """Application-level user profile.
 
-    In Supabase, auth.users table holds authentication info; we mirror the
-    user id (UUID) here and can attach additional profile / game data.
+    Supabase auth.users holds authentication; we mirror the user id (UUID) here
+    and attach profile / game data (e.g. game_sessions).
+
+    Attributes:
+        id: Primary key, UUID (matches Supabase auth user id).
+        email: Unique email address.
+        created_at: Timestamp when the record was created.
+        game_sessions: Related GameSession records (cascade delete).
     """
 
     __tablename__ = "users"
@@ -35,9 +45,17 @@ class User(Base):
 
 
 class GameSession(Base):
-    """
-    Represents a single Catan game instance for a user.
-    For now we store the full game state as JSON; you can normalize later.
+    """A single Catan game instance for a user.
+
+    State is stored as JSONB; the schema can be normalized later if needed.
+
+    Attributes:
+        id: Primary key, auto-increment.
+        user_id: Foreign key to users.id (CASCADE on delete).
+        created_at: When the session was created.
+        updated_at: When the session was last updated.
+        state: Serialized Catan game state (JSON).
+        user: Related User instance.
     """
 
     __tablename__ = "game_sessions"
