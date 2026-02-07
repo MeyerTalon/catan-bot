@@ -214,6 +214,7 @@ frontend/dist/
 frontend/.vite/
 *.log
 vite.config.*.timestamp-*
+!frontend/src/lib
 
 # Local frontend env files
 frontend/.env.local

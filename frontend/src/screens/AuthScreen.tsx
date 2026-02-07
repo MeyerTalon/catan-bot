@@ -1,12 +1,29 @@
-import React from "react";
+import React, { useState } from "react";
+import { LoginScreen } from "./LoginScreen";
+import { SignUpScreen } from "./SignUpScreen";
+
+type View = "landing" | "login" | "signup";
 
 export const AuthScreen: React.FC = () => {
-  const handlePlayClick = () => {
-    // Placeholder – later this can navigate to auth or game lobby.
-    // For now it just logs so you can see the click is working.
-    // eslint-disable-next-line no-console
-    console.log("Play Catan clicked");
-  };
+  const [view, setView] = useState<View>("landing");
+
+  if (view === "login") {
+    return (
+      <LoginScreen
+        onSwitchToSignUp={() => setView("signup")}
+        onBack={() => setView("landing")}
+      />
+    );
+  }
+
+  if (view === "signup") {
+    return (
+      <SignUpScreen
+        onSwitchToLogin={() => setView("login")}
+        onBack={() => setView("landing")}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center catan-bg">
@@ -16,11 +33,22 @@ export const AuthScreen: React.FC = () => {
           Build, trade, and settle the island of Catan with smart AI opponents.
         </p>
 
-        <button type="button" className="landing-play-button" onClick={handlePlayClick}>
-          Play Catan
+        <button
+          type="button"
+          className="landing-play-button"
+          onClick={() => setView("login")}
+        >
+          Log in
+        </button>
+        <button
+          type="button"
+          className="landing-play-button landing-play-button-secondary"
+          onClick={() => setView("signup")}
+        >
+          Sign up
         </button>
 
-        <p className="landing-hint">Sign in and game screens coming next.</p>
+        <p className="landing-hint">Create an account or log in to play.</p>
       </div>
     </div>
   );
