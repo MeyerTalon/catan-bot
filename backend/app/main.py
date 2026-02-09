@@ -1,103 +1,64 @@
+"""FastAPI app initialization.
+
+Assembles the application with lifespan, CORS, and the v1 API router.
+"""
+
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from . import models, schemas
-from .db import Base, engine, db_session
+from app.api.v1.api import api_router
+from app.db.base import Base, engine
+
+# Import models so they register with Base.metadata before create_all.
+import app.models  # noqa: F401
 
 
-def get_db() -> Session:
-    with db_session() as session:
-        yield session
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Run startup logic (create tables if missing). Shutdown is a no-op.
+
+    Args:
+        app: The FastAPI application instance (unused; required by lifespan signature).
+
+    Yields:
+        None: Control returns to the caller while the app is running.
+    """
+    Base.metadata.create_all(bind=engine)
+    yield
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Catan Backend", version="0.1.0")
+    """Create and configure the FastAPI application.
 
-    # Ensure tables exist (for Supabase, you'd typically use migrations; this is a safety net)
-    @app.on_event("startup")
-    def _startup() -> None:  # type: ignore[override]
-        Base.metadata.create_all(bind=engine)
+    Registers lifespan (create_all tables), CORS, and the v1 API router
+    (health, auth, users, game sessions, admin stub).
 
-    @app.get("/health", tags=["system"])
-    def health() -> dict:
-        return {"status": "ok"}
+    Returns:
+        The configured FastAPI application instance.
+    """
+    app = FastAPI(title="Catan Backend", version="0.1.0", lifespan=lifespan)
 
-    # --- User endpoints (profiles linked to Supabase auth) -------------------
-
-    @app.post("/users", response_model=schemas.UserRead, tags=["users"])
-    def create_user(
-        payload: schemas.UserCreate,
-        db: Session = Depends(get_db),
-    ) -> schemas.UserRead:
-        existing = (
-            db.query(models.User)
-            .filter(models.User.id == payload.id)
-            .or_(models.User.email == payload.email)
-            .first()
-        )
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User already exists.",
-            )
-
-        user = models.User(id=payload.id, email=payload.email)
-        db.add(user)
-        db.flush()
-        return schemas.UserRead.model_validate(user)
-
-    @app.get("/users/{user_id}", response_model=schemas.UserRead, tags=["users"])
-    def get_user(user_id: str, db: Session = Depends(get_db)) -> schemas.UserRead:
-        user = db.query(models.User).get(user_id)
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-        return schemas.UserRead.model_validate(user)
-
-    # --- Game session endpoints ----------------------------------------------
-
-    @app.post(
-        "/users/{user_id}/sessions",
-        response_model=schemas.GameSessionRead,
-        tags=["sessions"],
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
-    def create_session_for_user(
-        user_id: str,
-        payload: schemas.GameSessionCreate,
-        db: Session = Depends(get_db),
-    ) -> schemas.GameSessionRead:
-        user = db.query(models.User).get(user_id)
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-        session = models.GameSession(user_id=user.id, state=payload.state)
-        db.add(session)
-        db.flush()
-        return schemas.GameSessionRead.model_validate(session)
-
-    @app.get(
-        "/users/{user_id}/sessions",
-        response_model=list[schemas.GameSessionRead],
-        tags=["sessions"],
-    )
-    def list_sessions_for_user(
-        user_id: str,
-        db: Session = Depends(get_db),
-    ) -> list[schemas.GameSessionRead]:
-        sessions = (
-            db.query(models.GameSession)
-            .filter(models.GameSession.user_id == user_id)
-            .order_by(models.GameSession.created_at.desc())
-            .all()
-        )
-        return [schemas.GameSessionRead.model_validate(s) for s in sessions]
+    app.include_router(api_router)
 
     return app
 
 
 def run() -> None:
+    """Run the backend with uvicorn (factory mode, reload, host 0.0.0.0, port 8000)."""
     uvicorn.run(
         "app.main:create_app",
         factory=True,
@@ -108,4 +69,3 @@ def run() -> None:
 
 
 app = create_app()
-

@@ -1,35 +1,14 @@
-"""SQLAlchemy engine, base, and session utilities.
-
-Provides Base for ORM models, a shared engine, SessionLocal, and db_session()
-for request-scoped transactional access to the database.
-"""
+"""Database session factory and context manager."""
 
 from __future__ import annotations
 
 from contextlib import contextmanager
 from typing import Generator
 
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
-from sqlalchemy.orm import sessionmaker, Session, declarative_base
+from sqlalchemy.orm import sessionmaker, Session
 
-from .config import get_settings
+from app.db.base import engine
 
-
-Base = declarative_base()
-
-
-def _get_engine() -> Engine:
-    """Build the SQLAlchemy engine from settings.
-
-    Returns:
-        Engine configured with settings.database_url and future=True.
-    """
-    settings = get_settings()
-    return create_engine(settings.database_url, future=True)
-
-
-engine = _get_engine()
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, future=True)
 
 
@@ -55,4 +34,3 @@ def db_session() -> Generator[Session, None, None]:
         raise
     finally:
         session.close()
-

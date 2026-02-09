@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # Load backend/.env so env vars are available without exporting manually.
-_backend_dir = Path(__file__).resolve().parent.parent
+_backend_dir = Path(__file__).resolve().parent.parent.parent
 load_dotenv(_backend_dir / ".env")
 
 
@@ -23,8 +23,8 @@ class Settings(BaseModel):
 
     Attributes:
         database_url: Postgres connection string (Supabase). Required.
-        supabase_project_url: Supabase project URL. Optional, mainly for frontend.
-        supabase_anon_key: Supabase anon key. Optional, mainly for frontend.
+        supabase_project_url: Supabase project URL. Optional.
+        supabase_anon_key: Supabase anon key. Optional.
         supabase_service_role_key: Supabase service role key. Optional, backend-only.
         environment: "development" or "production". Defaults to "development".
     """
@@ -58,7 +58,6 @@ def get_settings() -> Settings:
     Raises:
         RuntimeError: If SUPABASE_DATABASE_URL is missing or starts with https://.
     """
-    
     database_url = os.environ.get("SUPABASE_DATABASE_URL")
     if not database_url:
         raise RuntimeError("SUPABASE_DATABASE_URL environment variable must be set.")
@@ -70,7 +69,7 @@ def get_settings() -> Settings:
 
     return Settings(
         database_url=database_url,
+        supabase_project_url=os.environ.get("SUPABASE_URL"),
         supabase_anon_key=os.environ.get("SUPABASE_ANON_KEY"),
         environment=os.environ.get("ENVIRONMENT", "development"),
     )
-
