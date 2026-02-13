@@ -4,9 +4,35 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'supabase/**'
+      - '.github/workflows/**'
 
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      supabase: ${{ steps.filter.outputs.supabase }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            supabase:
+              - 'supabase/**'
+
   backend-tests:
+    needs: check-changes
+    if: needs.check-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -24,6 +50,8 @@ jobs:
         run: poetry run python -m compileall .
 
   frontend-build:
+    needs: check-changes
+    if: needs.check-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -40,17 +68,21 @@ jobs:
 
   deploy:
     needs:
+      - check-changes
       - backend-tests
       - frontend-build
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Apply Supabase migrations
+        if: needs.check-changes.outputs.supabase == 'true'
         uses: supabase/setup-cli@v1
         with:
           version: latest
       - name: Run Supabase migrations
+        if: needs.check-changes.outputs.supabase == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
@@ -58,12 +90,14 @@ jobs:
           supabase db push --db-url "$SUPABASE_DATABASE_URL"
 
       - name: Deploy backend to Render
+        if: needs.check-changes.outputs.backend == 'true'
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           curl -X POST "$RENDER_DEPLOY_HOOK"
 
       - name: Deploy frontend to Vercel
+        if: needs.check-changes.outputs.frontend == 'true'
         working-directory: frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

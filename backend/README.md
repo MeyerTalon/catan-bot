@@ -50,15 +50,22 @@ backend/
 
 ### Users
 
-- **`POST /users`** – Create an application user profile (body: `id` [UUID], `email`). `id` should match the Supabase auth user id; backend trusts Supabase for auth. Fails if the user already exists.
-- **`GET /users/{user_id}`** – Get a user by UUID. Returns `id`, `email`, `created_at`.
+- **`POST /users`** – Create an application user profile (body: `id` [UUID], `email`). `id` should match the Supabase auth user id; backend trusts Supabase for auth. Fails if the user already exists. **Public** (no auth required).
+- **`GET /users/{user_id}`** – Get a user by UUID. Returns `id`, `email`, `created_at`. **Protected** (requires `Authorization: Bearer <token>` header). Users can only access their own profile.
 
 ### Game sessions
 
-- **`POST /users/{user_id}/sessions`** – Create a game session for a user. Body can include optional `state` (JSON object) for Catan game state. Returns the created session (id, user_id, created_at, updated_at, state).
-- **`GET /users/{user_id}/sessions`** – List game sessions for a user, newest first. Returns a list of session objects.
+- **`POST /users/{user_id}/sessions`** – Create a game session for a user. Body can include optional `state` (JSON object) for Catan game state. Returns the created session (id, user_id, created_at, updated_at, state). **Protected** (requires auth). Users can only create their own sessions.
+- **`GET /users/{user_id}/sessions`** – List game sessions for a user, newest first. Returns a list of session objects. **Protected** (requires auth). Users can only list their own sessions.
 
 User and game data are stored in Postgres. `User` has a one-to-many relationship with `GameSession`; deleting a user cascades to their sessions.
+
+**Authentication:**
+Protected endpoints require an `Authorization` header with a valid Supabase access token:
+```
+Authorization: Bearer eyJhbGci...
+```
+The backend validates the JWT, extracts the user ID, and ensures users can only access their own resources.
 
 ### Admin
 
@@ -73,9 +80,13 @@ Create a `backend/.env` file (or set environment variables). The app loads `back
 | `SUPABASE_DATABASE_URL` | Yes | Postgres connection string (e.g. `postgresql://...` or `postgresql+psycopg2://...`). Not the Supabase project HTTPS URL. From Supabase: Project Settings → Database → Connection string. |
 | `SUPABASE_URL` | For auth | Supabase project URL (e.g. `https://xxx.supabase.co`). Needed for login/signup. |
 | `SUPABASE_ANON_KEY` | For auth | Supabase anon/public key. Needed for login/signup. |
+| `SUPABASE_JWT_SECRET` | For protected routes | Supabase JWT secret for validating access tokens. From Supabase: Project Settings → API → JWT Secret. Required for `/users/{user_id}` and `/users/{user_id}/sessions` endpoints. |
 | `ENVIRONMENT` | No | `development` (default) or `production`. |
 
-If auth endpoints are called without `SUPABASE_URL` / `SUPABASE_ANON_KEY`, the backend returns 503.
+**Auth configuration:**
+- Login/signup endpoints (`/auth/login`, `/auth/signup`) need `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+- Protected endpoints (users, sessions) need `SUPABASE_JWT_SECRET` to validate tokens
+- Without these, the backend returns 503 (auth not configured) or 401 (unauthorized)
 
 ## Running locally
 
@@ -129,8 +140,10 @@ The repo includes a **Render Blueprint** at the repo root: `render.yaml`. It def
    - **Dockerfile Path**: `backend/Dockerfile`
    - **Docker Build Context**: `backend`
 2. **Set environment variables** in the Render dashboard for the service:
-   - `SUPABASE_DATABASE_URL` (required)
-   - `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for auth)
+   - `SUPABASE_DATABASE_URL` (required) – Use session pooler URL for IPv4 compatibility
+   - `SUPABASE_URL` (required for auth) – Supabase project URL
+   - `SUPABASE_ANON_KEY` (required for auth) – Supabase anon key
+   - `SUPABASE_JWT_SECRET` (required for protected routes) – From Supabase: Project Settings → API → JWT Secret
    - Optionally `ENVIRONMENT=production`
 3. Render sets `PORT` automatically; the Dockerfile CMD uses it for uvicorn. The service health check uses `GET /health`.
 
