@@ -506,6 +506,7 @@ body {
     inset 0 0 60px rgba(0, 255, 65, 0.05);
   text-align: center;
   color: var(--matrix-green);
+  position: relative;
 }
 
 .under-construction-banner {
@@ -547,5 +548,39 @@ body {
   color: var(--matrix-green-dim);
   margin: 0;
   letter-spacing: 0.05em;
+}
+
+.logout-button {
+  margin-top: 1.5rem;
+  padding: 0.5rem 1.5rem;
+  border: 1px solid var(--matrix-green-dim);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--matrix-green);
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-button:hover {
+  border-color: var(--matrix-green);
+  background: rgba(0, 255, 65, 0.1);
+  box-shadow: 
+    0 0 6px rgba(0, 255, 65, 0.2),
+    inset 0 0 10px rgba(0, 255, 65, 0.05);
+  color: var(--matrix-green-bright);
+}
+
+.logout-button:active {
+  transform: scale(0.98);
+}
+
+.logout-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 

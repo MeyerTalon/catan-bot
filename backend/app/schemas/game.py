@@ -10,7 +10,11 @@ from pydantic import BaseModel, Field
 
 
 class GameSessionBase(BaseModel):
-    """Shared game session fields (state)."""
+    """Shared game session fields (state).
+
+    Attributes:
+        state: Serialized Catan game state as dictionary.
+    """
 
     state: Dict[str, Any] = Field(
         default_factory=dict,
@@ -19,13 +23,25 @@ class GameSessionBase(BaseModel):
 
 
 class GameSessionCreate(GameSessionBase):
-    """Payload to create a game session (optional initial state)."""
+    """Payload to create a game session (optional initial state).
+
+    Attributes:
+        state: Serialized Catan game state as dictionary (inherited from GameSessionBase).
+    """
 
     pass
 
 
 class GameSessionRead(GameSessionBase):
-    """Game session as returned by the API (read-only fields)."""
+    """Game session as returned by the API (read-only fields).
+
+    Attributes:
+        id: Game session ID (primary key).
+        user_id: User UUID who owns the session.
+        state: Serialized Catan game state as dictionary (inherited from GameSessionBase).
+        created_at: Timestamp when the session was created.
+        updated_at: Timestamp when the session was last updated.
+    """
 
     id: int
     user_id: uuid.UUID

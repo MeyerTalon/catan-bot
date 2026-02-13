@@ -8,7 +8,11 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 
 class UserBase(BaseModel):
-    """Shared user fields (email)."""
+    """Shared user fields (email).
+
+    Attributes:
+        email: User email address.
+    """
 
     email: EmailStr
 
@@ -28,7 +32,13 @@ class UserCreate(UserBase):
 
 
 class UserRead(UserBase):
-    """User as returned by the API (read-only fields)."""
+    """User as returned by the API (read-only fields).
+
+    Attributes:
+        id: User UUID (primary key).
+        email: User email address (inherited from UserBase).
+        created_at: Timestamp when the user was created.
+    """
 
     id: uuid.UUID
     created_at: datetime

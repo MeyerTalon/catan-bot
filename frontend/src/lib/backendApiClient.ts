@@ -3,6 +3,8 @@
  * Base URL is configurable via VITE_BACKEND_URL (e.g. Render); defaults to localhost:8000 in dev.
  */
 
+import { supabase } from "./supabaseClient";
+
 const getBaseUrl = (): string => {
   const url = import.meta.env.VITE_BACKEND_URL;
   if (url) return url.replace(/\/$/, ""); // strip trailing slash
@@ -10,6 +12,21 @@ const getBaseUrl = (): string => {
 };
 
 const baseUrl = getBaseUrl();
+
+/**
+ * Get Authorization header with current user's access token.
+ * Protected backend endpoints require this header.
+ */
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error("Not authenticated. Please log in.");
+  }
+  return {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${session.access_token}`,
+  };
+}
 
 /** Session returned by backend auth endpoints (matches Supabase Auth session shape). */
 export type AuthSession = {
@@ -69,4 +86,17 @@ export async function signup(params: {
     }),
   });
   return handleResponse<AuthSession & { message?: string }>(res);
+}
+
+/**
+ * Example: Get user profile (protected endpoint).
+ * Requires authentication.
+ */
+export async function getUserProfile(userId: string): Promise<{ id: string; email: string; created_at: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${baseUrl}/users/${userId}`, {
+    method: "GET",
+    headers,
+  });
+  return handleResponse(res);
 }

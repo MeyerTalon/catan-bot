@@ -25,6 +25,7 @@ class Settings(BaseModel):
         database_url: Postgres connection string (Supabase). Required.
         supabase_project_url: Supabase project URL. Optional.
         supabase_anon_key: Supabase anon key. Optional.
+        supabase_jwt_secret: Supabase JWT secret for token validation. Required for auth.
         supabase_service_role_key: Supabase service role key. Optional, backend-only.
         environment: "development" or "production". Defaults to "development".
     """
@@ -32,6 +33,7 @@ class Settings(BaseModel):
     database_url: str
     supabase_project_url: Optional[str] = None
     supabase_anon_key: Optional[str] = None
+    supabase_jwt_secret: Optional[str] = None
     supabase_service_role_key: Optional[str] = None
     environment: str = "development"
 
@@ -71,5 +73,6 @@ def get_settings() -> Settings:
         database_url=database_url,
         supabase_project_url=os.environ.get("SUPABASE_PROJECT_URL"),
         supabase_anon_key=os.environ.get("SUPABASE_ANON_KEY"),
+        supabase_jwt_secret=os.environ.get("SUPABASE_JWT_SECRET"),
         environment=os.environ.get("ENVIRONMENT", "development"),
     )

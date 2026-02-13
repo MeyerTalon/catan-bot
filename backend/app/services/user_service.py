@@ -11,7 +11,18 @@ from app.schemas.user import UserCreate, UserRead
 
 
 def create_user(db: Session, payload: UserCreate) -> UserRead:
-    """Create a user profile. Raises 400 if id or email already exists."""
+    """Create a user profile.
+
+    Args:
+        db: Database session.
+        payload: User creation data containing id (UUID) and email.
+
+    Returns:
+        Created user profile as UserRead schema.
+
+    Raises:
+        HTTPException: 400 if id or email already exists.
+    """
     existing = user_crud.get(db, payload.id) or user_crud.get_by_email(db, payload.email)
     if existing:
         raise HTTPException(
@@ -23,7 +34,18 @@ def create_user(db: Session, payload: UserCreate) -> UserRead:
 
 
 def get_user(db: Session, user_id: str) -> UserRead:
-    """Get a user by UUID. Raises 404 if not found."""
+    """Get a user by UUID.
+
+    Args:
+        db: Database session.
+        user_id: User UUID as string.
+
+    Returns:
+        User profile as UserRead schema.
+
+    Raises:
+        HTTPException: 404 if user not found.
+    """
     user = user_crud.get(db, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
@@ -31,6 +53,11 @@ def get_user(db: Session, user_id: str) -> UserRead:
 
 
 class UserService:
+    """User profile service for creating and retrieving user records.
+
+    Provides business logic for user profile management linked to Supabase auth users.
+    """
+
     create_user = staticmethod(create_user)
     get_user = staticmethod(get_user)
 

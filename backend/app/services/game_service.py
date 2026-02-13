@@ -11,7 +11,19 @@ from app.schemas.game import GameSessionCreate, GameSessionRead
 
 
 def create_session(db: Session, user_id: str, payload: GameSessionCreate) -> GameSessionRead:
-    """Create a game session for a user. Raises 404 if user not found."""
+    """Create a game session for a user.
+
+    Args:
+        db: Database session.
+        user_id: User UUID as string.
+        payload: Game session creation data containing optional initial state.
+
+    Returns:
+        Created game session as GameSessionRead schema.
+
+    Raises:
+        HTTPException: 404 if user not found.
+    """
     user = user_crud.get(db, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -20,12 +32,25 @@ def create_session(db: Session, user_id: str, payload: GameSessionCreate) -> Gam
 
 
 def list_sessions(db: Session, user_id: str) -> list[GameSessionRead]:
-    """List game sessions for a user, newest first."""
+    """List game sessions for a user, newest first.
+
+    Args:
+        db: Database session.
+        user_id: User UUID as string.
+
+    Returns:
+        List of game sessions as GameSessionRead schemas, ordered by created_at descending.
+    """
     sessions = game_crud.list_by_user_id(db, user_id)
     return [GameSessionRead.model_validate(s) for s in sessions]
 
 
 class GameService:
+    """Game session service for creating and managing Catan game sessions.
+
+    Provides business logic for game session operations tied to user profiles.
+    """
+
     create_session = staticmethod(create_session)
     list_sessions = staticmethod(list_sessions)
 
