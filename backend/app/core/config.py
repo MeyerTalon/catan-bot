@@ -69,7 +69,7 @@ def get_settings() -> Settings:
 
     return Settings(
         database_url=database_url,
-        supabase_project_url=os.environ.get("SUPABASE_URL"),
+        supabase_project_url=os.environ.get("SUPABASE_PROJECT_URL"),
         supabase_anon_key=os.environ.get("SUPABASE_ANON_KEY"),
         environment=os.environ.get("ENVIRONMENT", "development"),
     )
