@@ -1,0 +1,11 @@
+# Render Blueprint: deploy backend from Docker (backend/Dockerfile).
+# Configure SUPABASE_DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY in the Render dashboard
+# (Environment) for the catan-backend service.
+
+services:
+  - type: web
+    name: catan-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health

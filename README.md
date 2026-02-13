@@ -2,15 +2,16 @@
 
 Full-stack Catan app with:
 
-- **Backend**: FastAPI + SQLAlchemy + Pydantic (Python) using a **Supabase Postgres** database.
+- **Backend**: FastAPI + SQLAlchemy + Pydantic (Python) using a **Supabase Postgres** database. Deployed to **Render** via **Docker** (see `backend/Dockerfile` and `render.yaml`).
 - **Frontend**: React (Vite) deployed to **Vercel**, using **Supabase Auth** for login/sign up.
 - **CI/CD**: GitHub Actions pipeline that runs tests, applies Supabase migrations, and triggers a Vercel deployment on pushes to `main`.
 
 ## Repo layout
 
-- `backend/` – FastAPI app (`app` package) with SQLAlchemy models and Pydantic schemas.
+- `backend/` – FastAPI app (`app` package) with SQLAlchemy models and Pydantic schemas; Dockerized for local runs and Render.
 - `frontend/` – React (Vite) app with a Supabase-powered login/sign up screen.
 - `supabase/` – Database migrations (SQL) for Supabase Postgres.
+- `render.yaml` – Render Blueprint for deploying the backend as a Docker web service.
 - `.github/workflows/ci-cd.yml` – CI/CD workflow for tests, migrations, and Vercel deployment.
 
 ## Backend (FastAPI + Supabase Postgres)
