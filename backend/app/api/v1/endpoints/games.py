@@ -18,9 +18,24 @@ def create_session_for_user(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> GameSessionRead:
-    """Create a game session for a user. Users can only create their own sessions.
-    
-    Requires: Authorization header with valid Supabase JWT token.
+    """Create a game session for a user.
+
+    Args:
+        user_id: User UUID as string (from path parameter).
+        payload: Game session creation data containing optional initial state.
+        current_user: Authenticated user (injected dependency).
+        db: Database session (injected dependency).
+
+    Returns:
+        Created game session as GameSessionRead schema.
+
+    Raises:
+        HTTPException: 403 if trying to create session for another user.
+        HTTPException: 404 if user not found.
+
+    Note:
+        Requires Authorization header with valid Supabase JWT token.
+        Users can only create their own sessions.
     """
     if str(current_user.id) != user_id:
         raise HTTPException(
@@ -36,9 +51,22 @@ def list_sessions_for_user(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[GameSessionRead]:
-    """List game sessions for a user, newest first. Users can only list their own sessions.
-    
-    Requires: Authorization header with valid Supabase JWT token.
+    """List game sessions for a user, newest first.
+
+    Args:
+        user_id: User UUID as string (from path parameter).
+        current_user: Authenticated user (injected dependency).
+        db: Database session (injected dependency).
+
+    Returns:
+        List of game sessions as GameSessionRead schemas, ordered by created_at descending.
+
+    Raises:
+        HTTPException: 403 if trying to access another user's sessions.
+
+    Note:
+        Requires Authorization header with valid Supabase JWT token.
+        Users can only list their own sessions.
     """
     if str(current_user.id) != user_id:
         raise HTTPException(

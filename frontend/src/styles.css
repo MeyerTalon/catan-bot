@@ -551,10 +551,8 @@ body {
 }
 
 .logout-button {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  padding: 0.5rem 1rem;
+  margin-top: 1.5rem;
+  padding: 0.5rem 1.5rem;
   border: 1px solid var(--matrix-green-dim);
   border-radius: 0.25rem;
   background: transparent;

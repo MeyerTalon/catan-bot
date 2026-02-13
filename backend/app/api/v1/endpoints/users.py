@@ -16,9 +16,20 @@ def create_user(
     payload: UserCreate,
     db: Session = Depends(get_db),
 ) -> UserRead:
-    """Create a user profile (id and email). Fails if user already exists.
-    
-    Note: This endpoint is public - users create their profile after Supabase signup.
+    """Create a user profile (id and email).
+
+    Args:
+        payload: User creation data containing id (UUID) and email.
+        db: Database session (injected dependency).
+
+    Returns:
+        Created user profile as UserRead schema.
+
+    Raises:
+        HTTPException: 400 if user already exists.
+
+    Note:
+        This endpoint is public - users create their profile after Supabase signup.
     """
     return user_service.create_user(db, payload)
 
@@ -29,9 +40,23 @@ def get_user(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UserRead:
-    """Get a user by UUID. Users can only access their own profile.
-    
-    Requires: Authorization header with valid Supabase JWT token.
+    """Get a user by UUID.
+
+    Args:
+        user_id: User UUID as string (from path parameter).
+        current_user: Authenticated user (injected dependency).
+        db: Database session (injected dependency).
+
+    Returns:
+        User profile as UserRead schema.
+
+    Raises:
+        HTTPException: 403 if trying to access another user's profile.
+        HTTPException: 404 if user not found.
+
+    Note:
+        Requires Authorization header with valid Supabase JWT token.
+        Users can only access their own profile.
     """
     if str(current_user.id) != user_id:
         raise HTTPException(
