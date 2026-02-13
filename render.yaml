@@ -1,7 +1,6 @@
 # Render Blueprint: deploy backend from Docker (backend/Dockerfile).
 # Configure SUPABASE_DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY in the Render dashboard
 # (Environment) for the catan-backend service.
-
 services:
   - type: web
     name: catan-backend
@@ -9,3 +8,14 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     healthCheckPath: /health
+    plan: free  # or 'starter' for $7/month always-on
+    region: oregon  # or your preferred region
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: SUPABASE_DATABASE_URL
+        sync: false  # Set manually in dashboard
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
