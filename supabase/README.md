@@ -1,4 +1,4 @@
-# Supabase workflow
+# Database workflow
 
 This project uses Supabase Postgres for persistence. The SQL migrations in
 `supabase/migrations` are the **source of truth** for the database schema.
@@ -63,5 +63,4 @@ make db-push-remote
 ```
 
 Only run this against non-production or production databases that are backed up
-and managed through your normal release process.
-
+and managed by your normal release process.

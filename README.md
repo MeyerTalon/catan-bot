@@ -2,48 +2,51 @@
 
 Full-stack Catan app with:
 
-- **Backend**: FastAPI + SQLAlchemy + Pydantic (Python) using a **Supabase Postgres** database.
+- **Backend**: FastAPI + SQLAlchemy + Pydantic (Python) using a **Supabase Postgres** database. Deployed to **Render** via **Docker** (see `backend/Dockerfile` and `render.yaml`).
 - **Frontend**: React (Vite) deployed to **Vercel**, using **Supabase Auth** for login/sign up.
 - **CI/CD**: GitHub Actions pipeline that runs tests, applies Supabase migrations, and triggers a Vercel deployment on pushes to `main`.
 
 ## Repo layout
 
-- `backend/` – FastAPI app (`catan_backend`) with SQLAlchemy models and Pydantic schemas.
+- `backend/` – FastAPI app (`app` package) with SQLAlchemy models and Pydantic schemas; Dockerized for local runs and Render.
 - `frontend/` – React (Vite) app with a Supabase-powered login/sign up screen.
 - `supabase/` – Database migrations (SQL) for Supabase Postgres.
+- `render.yaml` – Render Blueprint for deploying the backend as a Docker web service.
 - `.github/workflows/ci-cd.yml` – CI/CD workflow for tests, migrations, and Vercel deployment.
 
 ## Backend (FastAPI + Supabase Postgres)
 
-- Package: `catan_backend`
-- Entry point: `catan_backend.main:create_app`
+- Package: `app`
+- Entry point: `app.main:create_app`
 - Key files:
-  - `backend/catan_backend/config.py` – loads `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, etc.
-  - `backend/catan_backend/db.py` – SQLAlchemy engine/session setup.
-  - `backend/catan_backend/models.py` – `User` and `GameSession` ORM models.
-  - `backend/catan_backend/schemas.py` – Pydantic schemas for users and game sessions.
-  - `backend/catan_backend/main.py` – FastAPI app with basic health, user, and session endpoints.
+  - `backend/app/config.py` – loads `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, etc.
+  - `backend/app/db.py` – SQLAlchemy engine/session setup.
+  - `backend/app/models.py` – `User` and `GameSession` ORM models.
+  - `backend/app/schemas.py` – Pydantic schemas for users and game sessions.
+  - `backend/app/main.py` – FastAPI app with basic health, user, and session endpoints.
 
-### Backend setup with `.venv`
+### Backend setup with Poetry
 
-From the repo root:
+Install [Poetry](https://python-poetry.org/docs/#installation), then from the repo:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
-pip install --upgrade pip
 cd backend
-pip install -e .
+poetry install
 ```
 
 Then run the backend:
 
 ```bash
-export DATABASE_URL="postgresql://user:password@host:5432/dbname"  # Supabase DB URL
-uvicorn catan_backend.main:create_app --factory --reload
+cd backend
+export SUPABASE_DATABASE_URL="postgresql://user:password@host:5432/dbname"  # Supabase DB URL
+poetry run uvicorn app.main:create_app --factory --reload
 ```
 
+See `backend/README.md` for full backend docs.
+
 ## Frontend (React + Supabase Auth, Vite, Vercel)
+
+- Production deployment (live): `https://catan-bot.vercel.app/`
 
 - React app under `frontend/`:
   - `src/lib/supabaseClient.ts` – Supabase JS client.
@@ -90,7 +93,7 @@ Workflow: `.github/workflows/ci-cd.yml`
 - On push to `main`:
   - Runs backend tests (Python) in `backend/`.
   - Builds frontend (Node) in `frontend/`.
-  - Applies Supabase migrations via `supabase db push`.
+  - Applies Supabase migrations via `supabase db push` (CLI uses `supabase/` symlink to `database/`).
   - Deploys the frontend to Vercel (production).
 
 ### Required GitHub secrets
@@ -104,12 +107,11 @@ Workflow: `.github/workflows/ci-cd.yml`
 
 LLM-driven Catan bot that uses `gpt-oss` via [Ollama](https://ollama.com/) to choose moves from a structured game state.
 
-The project is written in Python and is designed to be run inside a dedicated Conda environment (see `environment.yml`).
+The project is written in Python and is designed to be run inside a dedicated Python virtual environment (`.venv` at the repo root).
 
 ## Prerequisites
 
-- **Conda** (e.g. Miniconda or Anaconda)
-- **Python** 3.11 (handled by the Conda env)
+- **Python** 3.11+
 - **Ollama** installed locally and running
   - Install Ollama from the official site.
   - Make sure the `gpt-oss` model is available:
@@ -119,22 +121,18 @@ The project is written in Python and is designed to be run inside a dedicated Co
 
 By default, this project expects Ollama's OpenAI-compatible HTTP API to be available at `http://localhost:11434`.
 
-## Setup (Conda environment)
+## Setup (Python venv)
 
 From the project root:
 
 ```bash
-conda env create -f environment.yml -n catan-bot
-conda activate catan-bot
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -e .
 ```
 
-If the environment already exists and you update dependencies, you can run:
-
-```bash
-conda env update -f environment.yml -n catan-bot
-```
-
-You can also install the package in editable mode (optional but recommended for development):
+If the environment already exists and you update dependencies, re-run from the repo root:
 
 ```bash
 pip install -e .
@@ -142,10 +140,10 @@ pip install -e .
 
 ## Running the bot (sample game state)
 
-Once the environment is active and Ollama is running with the `gpt-oss` model available:
+Once the environment is active (`.venv` activated) and Ollama is running with the `gpt-oss` model available:
 
 ```bash
-conda activate catan-bot
+source .venv/bin/activate   # if not already active
 catan-bot choose-move
 ```
 
