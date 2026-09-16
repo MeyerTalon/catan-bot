@@ -1,4 +1,13 @@
-"""Standard API response wrappers.
+"""Standard API response wrappers."""
 
-Placeholder for common response shapes (e.g. success, paginated list).
-"""
+from pydantic import BaseModel
+
+
+class HealthResponse(BaseModel):
+    """Liveness payload for GET /health.
+
+    Attributes:
+        status: Service status string.
+    """
+
+    status: str

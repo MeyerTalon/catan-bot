@@ -10,7 +10,9 @@ from app.crud.user import user_crud
 from app.schemas.game import GameSessionCreate, GameSessionRead
 
 
-def create_session(db: Session, user_id: str, payload: GameSessionCreate) -> GameSessionRead:
+def create_session(
+    db: Session, user_id: str, payload: GameSessionCreate
+) -> GameSessionRead:
     """Create a game session for a user.
 
     Args:
@@ -26,7 +28,9 @@ def create_session(db: Session, user_id: str, payload: GameSessionCreate) -> Gam
     """
     user = user_crud.get(db, user_id)
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail='User not found'
+        )
     session = game_crud.create(db, user_id=user.id, state=payload.state)
     return GameSessionRead.model_validate(session)
 

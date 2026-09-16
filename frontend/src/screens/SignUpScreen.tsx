@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { signup as backendSignup } from "../lib/backendApiClient";
-import { supabase } from "../lib/supabaseClient";
+import { api, apiErrorMessage } from "../api/client";
+import { setSession } from "../lib/session";
 
 type SignUpScreenProps = {
   onSwitchToLogin: () => void;
@@ -23,16 +23,18 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
     setError(null);
     setLoading(true);
     try {
-      const result = await backendSignup({
-        email,
-        password,
-        username: username.trim() || undefined,
+      const { data, error: apiError } = await api.POST("/auth/signup", {
+        body: {
+          email: email.trim(),
+          password,
+          username: username.trim() || null,
+        },
       });
-      if (result.access_token && result.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: result.access_token,
-          refresh_token: result.refresh_token,
-        });
+      if (apiError || !data) {
+        throw new Error(apiErrorMessage(apiError, "Sign up failed"));
+      }
+      if (data.access_token) {
+        setSession(data);
       } else {
         setSuccess(true);
       }

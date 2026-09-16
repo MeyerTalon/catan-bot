@@ -7,6 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
 
+
 class UserBase(BaseModel):
     """Shared user fields (email).
 
@@ -18,16 +19,16 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    """Payload to create a user profile linked to a Supabase auth user.
+    """Payload to create a user profile linked to a Cognito user.
 
     Attributes:
-        id: Supabase auth user UUID. Backend trusts Supabase for auth.
+        id: Cognito user UUID (`sub`).
         email: User email address.
     """
 
     id: uuid.UUID = Field(
         ...,
-        description="Supabase auth user UUID. Backend trusts Supabase for auth.",
+        description='Cognito user UUID. Must match the authenticated `sub` claim.',
     )
 
 

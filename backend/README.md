@@ -1,15 +1,19 @@
 # Catan Backend
 
-FastAPI backend for the Catan app. Uses **Supabase** for Postgres and authentication; the backend proxies auth and stores user profiles and game sessions in the database.
+FastAPI backend for the Catan app. Uses **RDS Postgres** (SQLAlchemy + Alembic) and **Amazon Cognito** for authentication. Login/signup are proxied through this API; user profiles and game sessions live in Postgres.
 
 ## Tech stack
 
 - **Python 3.11+**
-- **FastAPI** – API framework
-- **SQLAlchemy 2** – ORM and migrations (tables created via `create_all` on startup)
-- **Postgres** – via Supabase (connection string in `SUPABASE_DATABASE_URL`)
-- **Supabase Auth** – login/signup proxied through the backend using `SUPABASE_URL` and `SUPABASE_ANON_KEY`
-- **Poetry** – dependency and virtualenv management
+- **FastAPI** – API framework; `/openapi.json` is the source of truth for frontend wire types
+- **SQLAlchemy 2** – ORM
+- **Alembic** – schema migrations in `db/`
+- **Postgres** – RDS (connection string in `DATABASE_URL`)
+- **Amazon Cognito** – login/signup and JWT issuance
+- **uv** – dependency and virtualenv management (`uv sync`, `uv run`, `uv add`)
+- **ruff** – formatter and linter (dev)
+- **mypy** – type checker (dev)
+- **pytest** – unit tests (dev)
 
 ## Project layout
 
@@ -24,17 +28,19 @@ backend/
 │   │       └── endpoints/   # health, auth, users, games, admin
 │   ├── core/                # config, security, logging, exceptions
 │   ├── crud/                # DB operations (user, game)
-│   ├── db/                  # engine, session, init_db
+│   ├── db/                  # engine, session
 │   ├── models/              # SQLAlchemy models (User, GameSession)
 │   ├── schemas/             # Pydantic request/response schemas
 │   ├── services/            # auth_service, user_service, game_service
 │   ├── middleware/          # CORS, etc.
 │   └── utils/               # constants, helpers
-├── Dockerfile               # Docker image for local and Render
+├── scripts/
+│   └── export_openapi.py    # Writes frontend/src/api/openapi.json
+├── Dockerfile               # Docker image for local and AWS ECS
 ├── docker-compose.yml       # Local: docker compose up
-├── .dockerignore
-├── pyproject.toml           # Poetry config and scripts (catan-backend)
-└── README.md                # This file
+├── pyproject.toml
+├── uv.lock
+└── README.md
 ```
 
 ## Current functionality
@@ -43,33 +49,29 @@ backend/
 
 - **`GET /health`** – Liveness check; returns `{"status": "ok"}`.
 
-### Auth (Supabase proxy)
+### Auth (Cognito proxy)
 
-- **`POST /auth/login`** – Log in with `email` and `password`. Proxies to Supabase Auth; returns session/token payload. Requires `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
-- **`POST /auth/signup`** – Sign up with `email`, `password`, and optional `username`. Proxies to Supabase Auth; returns session or confirmation payload.
+- **`POST /auth/login`** – Log in with `email` and `password`. Proxies to Cognito; returns `AuthSessionResponse`.
+- **`POST /auth/signup`** – Sign up with `email`, `password`, and optional `username`. Creates the Cognito user, upserts a `users` row, returns a session when confirmation succeeds.
+- **`POST /auth/refresh`** – Exchange a refresh token for a new access token.
 
 ### Users
 
-- **`POST /users`** – Create an application user profile (body: `id` [UUID], `email`). `id` should match the Supabase auth user id; backend trusts Supabase for auth. Fails if the user already exists. **Public** (no auth required).
-- **`GET /users/{user_id}`** – Get a user by UUID. Returns `id`, `email`, `created_at`. **Protected** (requires `Authorization: Bearer <token>` header). Users can only access their own profile.
+- **`POST /users`** – Create an application user profile (body: `id` [UUID], `email`). `id` should match the Cognito `sub`. Fails if the user already exists. **Public**. Signup already upserts a profile.
+- **`GET /users/{user_id}`** – Get a user by UUID. **Protected**. Users can only access their own profile.
 
 ### Game sessions
 
-- **`POST /users/{user_id}/sessions`** – Create a game session for a user. Body can include optional `state` (JSON object) for Catan game state. Returns the created session (id, user_id, created_at, updated_at, state). **Protected** (requires auth). Users can only create their own sessions.
-- **`GET /users/{user_id}/sessions`** – List game sessions for a user, newest first. Returns a list of session objects. **Protected** (requires auth). Users can only list their own sessions.
+- **`POST /users/{user_id}/sessions`** – Create a game session. **Protected**.
+- **`GET /users/{user_id}/sessions`** – List sessions, newest first. **Protected**.
 
-User and game data are stored in Postgres. `User` has a one-to-many relationship with `GameSession`; deleting a user cascades to their sessions.
+Protected endpoints require:
 
-**Authentication:**
-Protected endpoints require an `Authorization` header with a valid Supabase access token:
 ```
-Authorization: Bearer eyJhbGci...
+Authorization: Bearer <cognito-access-token>
 ```
-The backend validates the JWT, extracts the user ID, and ensures users can only access their own resources.
 
-### Admin
-
-- **`/admin`** – Router is mounted but has no endpoints yet; placeholder for future admin-only routes.
+The backend validates the JWT against the Cognito JWKS, extracts `sub`, and ensures users can only access their own resources.
 
 ## Configuration
 
@@ -77,77 +79,80 @@ Create a `backend/.env` file (or set environment variables). The app loads `back
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SUPABASE_DATABASE_URL` | Yes | Postgres connection string (e.g. `postgresql://...` or `postgresql+psycopg2://...`). Not the Supabase project HTTPS URL. From Supabase: Project Settings → Database → Connection string. |
-| `SUPABASE_URL` | For auth | Supabase project URL (e.g. `https://xxx.supabase.co`). Needed for login/signup. |
-| `SUPABASE_ANON_KEY` | For auth | Supabase anon/public key. Needed for login/signup. |
-| `SUPABASE_JWT_SECRET` | For protected routes | Supabase JWT secret for validating access tokens. From Supabase: Project Settings → API → JWT Secret. Required for `/users/{user_id}` and `/users/{user_id}/sessions` endpoints. |
+| `DATABASE_URL` | Yes | Postgres connection string (`postgresql://...` or `postgresql+psycopg2://...`). |
+| `COGNITO_REGION` | For auth | AWS region of the user pool (default `us-west-2`). |
+| `COGNITO_USER_POOL_ID` | For auth | Cognito user pool id. |
+| `COGNITO_CLIENT_ID` | For auth | Cognito app client id. Enable `USER_PASSWORD_AUTH` on the client. |
+| `COGNITO_CLIENT_SECRET` | If confidential client | App client secret; omit for public clients. |
 | `ENVIRONMENT` | No | `development` (default) or `production`. |
 
-**Auth configuration:**
-- Login/signup endpoints (`/auth/login`, `/auth/signup`) need `SUPABASE_URL` and `SUPABASE_ANON_KEY`
-- Protected endpoints (users, sessions) need `SUPABASE_JWT_SECRET` to validate tokens
-- Without these, the backend returns 503 (auth not configured) or 401 (unauthorized)
+Without Cognito settings, login/signup return 503 and protected routes cannot validate JWTs.
+
+## OpenAPI
+
+The frontend generates TypeScript types from this API:
+
+```bash
+mise run be:openapi
+mise run fe:generate-api
+```
+
+Commit both `frontend/src/api/openapi.json` and `frontend/src/api/schema.d.ts`. CI fails if they are stale.
 
 ## Running locally
 
-From the repo root:
+From the repo root with [mise](https://mise.jdx.dev/) installed (`./setup.sh` from the repo root does this):
 
-1. **Install Poetry** if needed: <https://python-poetry.org/docs/#installation>
-2. **Create and use the environment:**
+1. **Install tools and deps:**
    ```bash
-   cd backend
-   poetry install
+   mise install
+   mise run be:sync
    ```
-3. **Set `SUPABASE_DATABASE_URL`** (and optionally `SUPABASE_URL`, `SUPABASE_ANON_KEY`) in `backend/.env`.
+2. **Set `DATABASE_URL` and Cognito vars** in `backend/.env`.
+3. **Apply migrations:**
+   ```bash
+   mise run be:migrate
+   ```
 4. **Run the server:**
    ```bash
-   poetry run uvicorn app.main:create_app --factory --reload
+   mise run be:dev
    ```
-   Or use the script:
-   ```bash
-   poetry run catan-backend
-   ```
-   Server runs at **http://0.0.0.0:8000**. Interactive API docs: **http://localhost:8000/docs**.
+   Or from `backend/`: `uv run catan-backend`
+
+   Server: **http://0.0.0.0:8000**. Docs: **http://localhost:8000/docs**. OpenAPI: **http://localhost:8000/openapi.json**.
+
+## Quality checks
+
+From the repo root after `mise install` / `mise run be:sync`:
+
+```bash
+mise run be:format          # format (single quotes, line length 88)
+mise run be:lint            # ruff check
+mise run be:typecheck       # mypy on `app`
+mise run be:test            # pytest
+mise run be:check           # all of the above plus compileall
+```
+
+CI runs `mise run be:check`.
 
 ## Docker (local testing)
 
-Build and run the backend in a container. The image uses `PORT=8000` by default; Render overrides `PORT` at runtime.
-
-**Using Docker Compose (recommended for local):**
-
 ```bash
 cd backend
-# Ensure backend/.env exists with SUPABASE_DATABASE_URL, etc.
 docker compose up --build
 ```
 
-API: **http://localhost:8000**, docs: **http://localhost:8000/docs**.
-
-**Using Docker directly:**
+API: **http://localhost:8000**.
 
 ```bash
-# From repo root; build context is backend/
 docker build -f backend/Dockerfile -t catan-backend backend
 docker run --rm -p 8000:8000 --env-file backend/.env -e PORT=8000 catan-backend
 ```
 
-## Deploying to Render
+## Deploying to AWS
 
-The repo includes a **Render Blueprint** at the repo root: `render.yaml`. It defines a Docker-based web service that builds from `backend/Dockerfile` with build context `backend/`.
-
-1. **Connect the repo** to Render and create a new Blueprint (Infrastructure as Code) from `render.yaml`, or create a Web Service and set:
-   - **Runtime**: Docker
-   - **Dockerfile Path**: `backend/Dockerfile`
-   - **Docker Build Context**: `backend`
-2. **Set environment variables** in the Render dashboard for the service:
-   - `SUPABASE_DATABASE_URL` (required) – Use session pooler URL for IPv4 compatibility
-   - `SUPABASE_URL` (required for auth) – Supabase project URL
-   - `SUPABASE_ANON_KEY` (required for auth) – Supabase anon key
-   - `SUPABASE_JWT_SECRET` (required for protected routes) – From Supabase: Project Settings → API → JWT Secret
-   - Optionally `ENVIRONMENT=production`
-3. Render sets `PORT` automatically; the Dockerfile CMD uses it for uvicorn. The service health check uses `GET /health`.
+CI on `main` builds the Docker image, pushes it to ECR, applies Alembic migrations, and force-deploys the ECS service. Infra lives in `terraform/` (not modified by this app-layer cutover). Required GitHub secrets are listed in the root README.
 
 ## Updating dependencies
 
-- Edit `pyproject.toml`, then from `backend/`: `poetry lock` (if deps changed), then `poetry install`.
-- If the environment is broken, remove the Poetry venv and run `poetry install` again from `backend/`.
+- From `backend/`: `uv add <package>` for runtime deps, `uv add --dev <package>` for test/dev deps, `uv remove <package>` to drop them. Then `uv lock` is updated automatically; commit `uv.lock`.

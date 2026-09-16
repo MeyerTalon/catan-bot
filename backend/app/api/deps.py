@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
@@ -22,7 +22,7 @@ def get_db() -> Generator[Session, None, None]:
         yield session
 
 
-def get_current_user_id(authorization: str = Header(..., alias="Authorization")) -> str:
+def get_current_user_id(authorization: str = Header(..., alias='Authorization')) -> str:
     """Extract and validate user ID from Authorization header.
 
     Args:
@@ -34,12 +34,12 @@ def get_current_user_id(authorization: str = Header(..., alias="Authorization"))
     Raises:
         HTTPException: 401 if Authorization header is missing, malformed, or token is invalid.
     """
-    if not authorization.startswith("Bearer "):
+    if not authorization.startswith('Bearer '):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authorization header format. Expected 'Bearer <token>'.",
         )
-    token = authorization.replace("Bearer ", "", 1).strip()
+    token = authorization.replace('Bearer ', '', 1).strip()
     return get_user_id_from_token(token)
 
 
@@ -63,6 +63,6 @@ def get_current_user(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found. Please create a user profile first.",
+            detail='User not found. Please create a user profile first.',
         )
     return user

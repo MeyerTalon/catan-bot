@@ -2,116 +2,100 @@
 
 Full-stack Catan app with:
 
-- **Backend**: FastAPI + SQLAlchemy + Pydantic (Python) using a **Supabase Postgres** database. Deployed to **Render** via **Docker** (see `backend/Dockerfile` and `render.yaml`).
-- **Frontend**: React (Vite) deployed to **Vercel**, using **Supabase Auth** for login/sign up.
-- **CI/CD**: GitHub Actions pipeline that runs tests, applies Supabase migrations, and triggers a Vercel deployment on pushes to `main`.
+- **Backend**: FastAPI + SQLAlchemy + Pydantic (Python) using **RDS Postgres**. Auth is Amazon Cognito, proxied through the API. Docker image runs on **AWS ECS**.
+- **Frontend**: React (Vite) with types generated from the backend OpenAPI schema. Static hosting is **S3 + CloudFront**.
+- **CI/CD**: GitHub Actions — tests, OpenAPI type check, Alembic migrations, ECR/ECS deploy, S3/CloudFront deploy on pushes to `main`.
 
 ## Repo layout
 
-- `backend/` – FastAPI app (`app` package) with SQLAlchemy models and Pydantic schemas; Dockerized for local runs and Render.
-- `frontend/` – React (Vite) app with a Supabase-powered login/sign up screen.
-- `supabase/` – Database migrations (SQL) for Supabase Postgres.
-- `render.yaml` – Render Blueprint for deploying the backend as a Docker web service.
-- `.github/workflows/ci-cd.yml` – CI/CD workflow for tests, migrations, and Vercel deployment.
+- `backend/` – FastAPI app (`app` package) with SQLAlchemy models and Pydantic schemas; Dockerized for local runs and AWS ECS.
+- `frontend/` – React (Vite) app. API client and types live in `src/api/` (generated from OpenAPI). pnpm for packages.
+- `db/` – Alembic migrations (source of truth for the Postgres schema).
+- `terraform/` – AWS IaC (bootstrap + reusable modules + per-env stacks: VPC, RDS, ECS Fargate, ALB, S3/CloudFront). See `terraform/README.md`.
+- `mise.toml` – pinned tool versions (Python, Node, pnpm, uv, Terraform, tflint) and `mise run` tasks.
+- `setup.sh` – one-time local bootstrap for vscode / cursor.
+- `.github/workflows/ci-cd.yml` – CI/CD for tests, migrations, and AWS deploys.
 
-## Backend (FastAPI + Supabase Postgres)
+## Setup
+
+From the repo root in vscode / cursor:
+
+```bash
+./setup.sh
+```
+
+Installs [mise](https://mise.jdx.dev/) if needed, pins tools from `mise.toml`, syncs the backend and bot uv environments, installs frontend pnpm deps, copies env examples when missing, and writes `.vscode/` workspace settings (Python interpreter = `backend/.venv`). Then fill in `backend/.env` and run `mise run be:dev` / `mise run fe:dev`.
+
+## Backend (FastAPI + RDS + Cognito)
 
 - Package: `app`
 - Entry point: `app.main:create_app`
-- Key files:
-  - `backend/app/config.py` – loads `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, etc.
-  - `backend/app/db.py` – SQLAlchemy engine/session setup.
-  - `backend/app/models.py` – `User` and `GameSession` ORM models.
-  - `backend/app/schemas.py` – Pydantic schemas for users and game sessions.
-  - `backend/app/main.py` – FastAPI app with basic health, user, and session endpoints.
+- Schema: Alembic in `db/` (`uv run alembic -c ../db/alembic.ini upgrade head` from `backend/`)
+- OpenAPI export: `uv run python scripts/export_openapi.py` from `backend/`
 
-### Backend setup with Poetry
-
-Install [Poetry](https://python-poetry.org/docs/#installation), then from the repo:
+From the repo root:
 
 ```bash
-cd backend
-poetry install
+./setup.sh
+mise run be:dev
 ```
 
-Then run the backend:
+See `backend/README.md` for env vars (`DATABASE_URL`, `COGNITO_*`) and endpoint docs.
+
+## Frontend (React + OpenAPI client)
 
 ```bash
-cd backend
-export SUPABASE_DATABASE_URL="postgresql://user:password@host:5432/dbname"  # Supabase DB URL
-poetry run uvicorn app.main:create_app --factory --reload
+./setup.sh
+mise run fe:dev
 ```
 
-See `backend/README.md` for full backend docs.
+Local env (`frontend/.env.local`): `VITE_BACKEND_URL=http://localhost:8000`.
 
-## Frontend (React + Supabase Auth, Vite, Vercel)
-
-- Production deployment (live): `https://catan-bot.vercel.app/`
-
-- React app under `frontend/`:
-  - `src/lib/supabaseClient.ts` – Supabase JS client.
-  - `src/screens/AuthScreen.tsx` – login / sign up UI.
-  - `src/main.tsx` – renders `AuthScreen`.
-
-### Frontend env variables
-
-Configure in Vercel (and `.env.local` for local dev):
-
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-
-### Running frontend locally
+After backend API changes:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+mise run api
 ```
 
-## Supabase migrations
+## Database (Alembic)
 
-- `supabase/migrations/0001_init.sql` contains initial `users` and `game_sessions` tables.
-- Use the Supabase CLI (and `SUPABASE_DB_URL`) to push migrations, e.g.:
+Revisions live in `db/versions/`. See `db/README.md`.
 
 ```bash
-supabase db push --db-url "$SUPABASE_DB_URL"
+mise run be:migrate
 ```
 
-For a more complete workflow (local Supabase, diff-based migrations, and helper
-commands), see `supabase/README.md` and the `Makefile` targets:
-
-```bash
-make supabase-start    # run local Supabase stack
-make db-reset-local    # recreate local DB from migrations
-make db-push-remote    # apply migrations to remote DB via SUPABASE_DB_URL
-```
-
-## CI/CD (GitHub Actions + Vercel + Supabase)
+## CI/CD (GitHub Actions + AWS)
 
 Workflow: `.github/workflows/ci-cd.yml`
 
-- On push to `main`:
-  - Runs backend tests (Python) in `backend/`.
-  - Builds frontend (Node) in `frontend/`.
-  - Applies Supabase migrations via `supabase db push` (CLI uses `supabase/` symlink to `database/`).
-  - Deploys the frontend to Vercel (production).
+On push to `main`: compile/test backend, regenerate OpenAPI types and fail if they drifted, build the frontend, run Alembic against RDS, push the backend image to ECR, update ECS, sync `frontend/dist` to S3, invalidate CloudFront.
 
 ### Required GitHub secrets
 
-- `SUPABASE_ACCESS_TOKEN` – for Supabase CLI (if needed).
-- `SUPABASE_DB_URL` – database URL for migrations.
-- `VERCEL_TOKEN` – Vercel deploy token.
-- Any other Vercel-related environment (e.g. `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`) if required in your Vercel setup.
+| Secret | Purpose |
+|--------|---------|
+| `AWS_ROLE_ARN` | IAM role for GitHub OIDC (`terraform output github_deploy_role_arn` once `github_repository` is set). |
+| `AWS_REGION` | e.g. `us-west-2` |
+| `DATABASE_URL` | RDS connection string for Alembic |
+| `ECR_REPOSITORY` | Full ECR repo URI |
+| `ECS_CLUSTER` | ECS cluster name |
+| `ECS_SERVICE` | ECS service name |
+| `FRONTEND_BUCKET` | S3 bucket for the Vite build |
+| `CLOUDFRONT_DISTRIBUTION_ID` | CloudFront distribution id |
+| `VITE_BACKEND_URL` | Public backend origin baked into the frontend build |
+
+Cognito user pool id/client id are backend runtime env (ECS task), not frontend secrets.
 
 # catan-bot
 
 LLM-driven Catan bot that uses `gpt-oss` via [Ollama](https://ollama.com/) to choose moves from a structured game state.
 
-The project is written in Python and is designed to be run inside a dedicated Python virtual environment (`.venv` at the repo root).
+The project is written in Python. Tool versions and tasks are managed with [mise](https://mise.jdx.dev/); Python packages use [uv](https://docs.astral.sh/uv/).
 
 ## Prerequisites
 
-- **Python** 3.11+
+- **mise** (`curl https://mise.run | sh`, then `mise install` in this repo)
 - **Ollama** installed locally and running
   - Install Ollama from the official site.
   - Make sure the `gpt-oss` model is available:
@@ -121,30 +105,21 @@ The project is written in Python and is designed to be run inside a dedicated Py
 
 By default, this project expects Ollama's OpenAI-compatible HTTP API to be available at `http://localhost:11434`.
 
-## Setup (Python venv)
+## Setup
 
 From the project root:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
-pip install --upgrade pip
-pip install -e .
-```
-
-If the environment already exists and you update dependencies, re-run from the repo root:
-
-```bash
-pip install -e .
+mise install
+mise run bot:sync
 ```
 
 ## Running the bot (sample game state)
 
-Once the environment is active (`.venv` activated) and Ollama is running with the `gpt-oss` model available:
+Once Ollama is running with the `gpt-oss` model available:
 
 ```bash
-source .venv/bin/activate   # if not already active
-catan-bot choose-move
+mise run bot:choose-move
 ```
 
 This will:
@@ -155,4 +130,3 @@ This will:
 - Print the model's reasoning and the chosen action.
 
 The CLI command has a `--no-sample` flag reserved for future integration with a real game engine or external state source.
-

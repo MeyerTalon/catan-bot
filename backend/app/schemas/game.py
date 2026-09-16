@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -16,9 +16,9 @@ class GameSessionBase(BaseModel):
         state: Serialized Catan game state as dictionary.
     """
 
-    state: Dict[str, Any] = Field(
+    state: dict[str, Any] = Field(
         default_factory=dict,
-        description="Serialized Catan game state.",
+        description='Serialized Catan game state.',
     )
 
 
@@ -28,8 +28,6 @@ class GameSessionCreate(GameSessionBase):
     Attributes:
         state: Serialized Catan game state as dictionary (inherited from GameSessionBase).
     """
-
-    pass
 
 
 class GameSessionRead(GameSessionBase):

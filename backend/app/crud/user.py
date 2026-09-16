@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.user import User
 
 
-def get_by_id(db: Session, user_id: uuid.UUID | str) -> Optional[User]:
+def get_by_id(db: Session, user_id: uuid.UUID | str) -> User | None:
     """Get a user by primary key.
 
     Args:
@@ -20,10 +19,12 @@ def get_by_id(db: Session, user_id: uuid.UUID | str) -> Optional[User]:
     Returns:
         User model instance if found, None otherwise.
     """
-    return db.get(User, str(user_id) if isinstance(user_id, str) else user_id)
+    if isinstance(user_id, str):
+        user_id = uuid.UUID(user_id)
+    return db.get(User, user_id)
 
 
-def get_by_email(db: Session, email: str) -> Optional[User]:
+def get_by_email(db: Session, email: str) -> User | None:
     """Get a user by email.
 
     Args:
@@ -41,7 +42,7 @@ def create(db: Session, *, id: uuid.UUID, email: str) -> User:
 
     Args:
         db: Database session.
-        id: User UUID (must match Supabase auth user id).
+        id: User UUID (must match Cognito `sub`).
         email: User email address.
 
     Returns:

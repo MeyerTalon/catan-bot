@@ -11,7 +11,7 @@ from app.services.user_service import user_service
 router = APIRouter()
 
 
-@router.post("", response_model=UserRead)
+@router.post('', response_model=UserRead)
 def create_user(
     payload: UserCreate,
     db: Session = Depends(get_db),
@@ -29,12 +29,12 @@ def create_user(
         HTTPException: 400 if user already exists.
 
     Note:
-        This endpoint is public - users create their profile after Supabase signup.
+        This endpoint is public. Signup already upserts a profile; this remains for clients that create one separately.
     """
     return user_service.create_user(db, payload)
 
 
-@router.get("/{user_id}", response_model=UserRead)
+@router.get('/{user_id}', response_model=UserRead)
 def get_user(
     user_id: str,
     current_user: User = Depends(get_current_user),
@@ -55,7 +55,7 @@ def get_user(
         HTTPException: 404 if user not found.
 
     Note:
-        Requires Authorization header with valid Supabase JWT token.
+        Requires Authorization header with a valid Cognito access token.
         Users can only access their own profile.
     """
     if str(current_user.id) != user_id:

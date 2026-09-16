@@ -1,18 +1,12 @@
 import React, { useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { clearSession } from "../lib/session";
 
 export const GameScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setLoading(true);
-    try {
-      await supabase.auth.signOut();
-      // onAuthStateChange in App.tsx will handle redirect to AuthScreen
-    } catch (err) {
-      console.error("Logout failed:", err);
-      setLoading(false);
-    }
+    clearSession();
   };
 
   return (

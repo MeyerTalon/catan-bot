@@ -7,104 +7,98 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
-      - 'supabase/**'
+      - 'db/**'
+      - 'mise.toml'
+      - 'mise.lock'
       - '.github/workflows/**'
 
-jobs:
-  check-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      supabase: ${{ steps.filter.outputs.supabase }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'backend/**'
-            frontend:
-              - 'frontend/**'
-            supabase:
-              - 'supabase/**'
+permissions:
+  id-token: write
+  contents: read
 
+jobs:
   backend-tests:
-    needs: check-changes
-    if: needs.check-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install Poetry
-        run: pip install poetry
-      - name: Install backend dependencies
-        run: poetry install --no-interaction
-      - name: Run backend tests
-        run: poetry run python -m compileall .
+      - uses: jdx/mise-action@v4
+      - name: Sync backend
+        run: mise run be:sync
+      - name: Check backend
+        run: mise run be:check
+
+  openapi-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - name: Sync backend
+        run: mise run be:sync
+      - name: Install frontend dependencies
+        run: mise run fe:install
+      - name: Export OpenAPI and regenerate types
+        run: mise run api
+      - name: Fail if generated API artifacts are stale
+        run: git diff --exit-code -- frontend/src/api/openapi.json frontend/src/api/schema.d.ts
 
   frontend-build:
-    needs: check-changes
-    if: needs.check-changes.outputs.frontend == 'true'
+    needs: openapi-check
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - uses: jdx/mise-action@v4
       - name: Install frontend dependencies
-        run: npm install
-      - name: Build frontend
-        run: npm run build
+        run: mise run fe:install
+      - name: Build
+        env:
+          VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
+        run: mise run fe:build
 
   deploy:
     needs:
-      - check-changes
       - backend-tests
       - frontend-build
-    if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Apply Supabase migrations
-        if: needs.check-changes.outputs.supabase == 'true'
-        uses: supabase/setup-cli@v1
+      - uses: jdx/mise-action@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          version: latest
-      - name: Run Supabase migrations
-        if: needs.check-changes.outputs.supabase == 'true'
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Apply Alembic migrations
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          supabase db push --db-url "$SUPABASE_DATABASE_URL"
-
-      - name: Deploy backend to Render
-        if: needs.check-changes.outputs.backend == 'true'
+          mise run be:sync
+          mise run be:migrate
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push backend image
         env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
         run: |
-          curl -X POST "$RENDER_DEPLOY_HOOK"
-
-      - name: Deploy frontend to Vercel
-        if: needs.check-changes.outputs.frontend == 'true'
-        working-directory: frontend
+          IMAGE="$ECR_REPOSITORY:${{ github.sha }}"
+          docker build -f backend/Dockerfile -t "$IMAGE" -t "$ECR_REPOSITORY:latest" backend
+          docker push "$IMAGE"
+          docker push "$ECR_REPOSITORY:latest"
+      - name: Deploy backend to ECS
+        run: |
+          aws ecs update-service \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --service "${{ secrets.ECS_SERVICE }}" \
+            --force-new-deployment
+      - name: Build frontend
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
         run: |
-          npm install -g vercel
-          vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-          vercel build --prod --token=$VERCEL_TOKEN
-          vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+          mise run fe:install
+          mise run fe:build
+      - name: Deploy frontend to S3 and CloudFront
+        run: |
+          aws s3 sync frontend/dist "s3://${{ secrets.FRONTEND_BUCKET }}" --delete
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*"

@@ -1,0 +1,26 @@
+{
+  "python.defaultInterpreterPath": "/Users/talonmeyer/.local/share/mise/installs/python/3.11.14/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.extraPaths": ["${workspaceFolder}/backend"],
+  "ruff.nativeServer": "on",
+  "ruff.configuration": "${workspaceFolder}/backend/pyproject.toml",
+  "ruff.interpreter": ["${workspaceFolder}/backend/.venv/bin/python"],
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  },
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "terminal.integrated.env.osx": {
+    "PATH": "${env:HOME}/.local/share/mise/shims:${env:HOME}/.local/bin:${env:PATH}"
+  },
+  "terminal.integrated.env.linux": {
+    "PATH": "${env:HOME}/.local/share/mise/shims:${env:HOME}/.local/bin:${env:PATH}"
+  },
+  "mise.configureExtensionsAutomatically": true,
+  "mise.configureExtensionsIncludeGlobalTools": false,
+  "mise.configureExtensionsAutomaticallyIncludeList": [
+    "ms-python.python",
+    "charliermarsh.ruff"
+  ]
+}

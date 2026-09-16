@@ -1,6 +1,6 @@
 # Local testing: build and run the backend in a container.
 # From backend/: docker compose up --build
-# Requires backend/.env with SUPABASE_DATABASE_URL (and SUPABASE_URL, SUPABASE_ANON_KEY for auth).
+# Requires backend/.env with DATABASE_URL and Cognito settings.
 services:
   backend:
     build: .

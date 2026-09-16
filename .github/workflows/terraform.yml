@@ -1,0 +1,96 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+      - 'mise.toml'
+      - 'mise.lock'
+      - '.github/workflows/terraform.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - 'mise.toml'
+      - 'mise.lock'
+      - '.github/workflows/terraform.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-west-2
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  # no AWS access needed: formatting, validation, lint for every stack/module
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - name: Format and validate
+        run: mise run tf:check
+      - name: Lint
+        run: mise run tf:lint
+
+  # read-only plan on pull requests; skipped until the plan role variable is set
+  plan:
+    if: github.event_name == 'pull_request' && vars.AWS_TERRAFORM_PLAN_ROLE_ARN != ''
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [prod]
+    defaults:
+      run:
+        working-directory: terraform/envs/${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        run: terraform init -backend-config=backend.hcl
+      - name: Plan
+        run: |
+          terraform plan -lock=false -no-color -out=tfplan | tee plan.txt
+          {
+            echo "## terraform plan (${{ matrix.env }})"
+            echo '```'
+            tail -n 200 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # apply on main; skipped until the apply role variable is set. add a
+  # "production" environment with required reviewers in github settings to gate it.
+  apply:
+    if: github.event_name == 'push' && vars.AWS_TERRAFORM_APPLY_ROLE_ARN != ''
+    needs: check
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: terraform-apply-${{ matrix.env }}
+      cancel-in-progress: false
+    strategy:
+      matrix:
+        env: [prod]
+    defaults:
+      run:
+        working-directory: terraform/envs/${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        run: terraform init -backend-config=backend.hcl
+      - name: Apply
+        run: terraform apply -auto-approve -no-color

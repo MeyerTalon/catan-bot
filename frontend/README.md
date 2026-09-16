@@ -1,127 +1,70 @@
-# Frontend (React + Vite + Supabase)
+# Frontend (React + Vite)
 
-React frontend for the Catan app. Built with Vite and TypeScript; designed to use Supabase for auth and (optionally) the backend API for users and game sessions. Deployed to Vercel.
+React frontend for the Catan app. Built with Vite and TypeScript. Auth goes through the FastAPI backend (Amazon Cognito). Production static files are served from S3 + CloudFront.
+
+Wire types are generated from the backend OpenAPI schema. Do not hand-edit `src/api/schema.d.ts` or `src/api/openapi.json`.
 
 ## Tech stack
 
 - **React** 18
 - **TypeScript**
-- **Vite** 5 – dev server and production build
-- **@supabase/supabase-js** – Supabase client (auth, optional realtime/storage)
-- **ESLint** – linting (React hooks, React refresh)
-
-No UI framework is installed by default; the app uses custom CSS (e.g. `styles.css`). You can add Tailwind or another CSS approach later.
+- **Vite** 5
+- **pnpm** – package manager (`pnpm-lock.yaml`)
+- **openapi-fetch** + **openapi-typescript** – typed client from FastAPI `/openapi.json`
+- **ESLint**
 
 ## Structure
 
 ```
 frontend/
-├── index.html           # Single-page app shell; mounts #root and loads src/main.tsx
-├── package.json         # Scripts and dependencies
-├── package-lock.json
-├── tsconfig.json        # TypeScript config
-├── vite.config.ts       # Vite config (React plugin, dev server port 5173)
 ├── src/
-│   ├── main.tsx         # Entry: React root, renders <AuthScreen />
-│   ├── styles.css       # Global styles
-│   └── screens/
-│       └── AuthScreen.tsx   # Landing / auth UI (e.g. “Play Catan”)
-├── public/              # Static assets (if added)
-└── README.md            # This file
+│   ├── api/
+│   │   ├── openapi.json     # Exported from FastAPI (committed)
+│   │   ├── schema.d.ts      # Generated TS types (committed)
+│   │   └── client.ts        # openapi-fetch client
+│   ├── lib/session.ts       # Local session storage for Cognito tokens
+│   ├── screens/             # Auth + game UI
+│   ├── App.tsx
+│   └── main.tsx
+└── README.md
 ```
-
-### Key files
-
-| File | Role |
-|------|------|
-| **index.html** | HTML shell; `<div id="root">` and `<script type="module" src="/src/main.tsx">`. Vite serves this and injects the bundled app. |
-| **vite.config.ts** | Uses `@vitejs/plugin-react-swc`; dev server runs on port **5173**. |
-| **src/main.tsx** | Creates React root, renders `<AuthScreen />` inside `StrictMode`, and imports `styles.css`. |
-| **src/screens/AuthScreen.tsx** | Landing screen: title, subtitle, “Play Catan” button (placeholder handler), and hint text. Intended to be extended with Supabase sign-in/sign-up and navigation to game or lobby. |
-| **src/styles.css** | Global styles (e.g. layout, landing card, buttons). Referenced from `main.tsx`. |
-
-The root README mentions `src/lib/supabaseClient.ts` for the Supabase JS client; that file may be added when you wire up auth. Until then, the app runs without it.
 
 ## Scripts
 
-From the `frontend/` directory:
+Prefer `mise run fe:*` from the repo root. Direct pnpm equivalents from `frontend/`:
 
 | Command | Description |
 |---------|-------------|
-| `npm install` | Install dependencies. |
-| `npm run dev` | Start Vite dev server (default: http://localhost:5173). Uses `BROWSER="Google Chrome"` if set. |
-| `npm run build` | Production build; output in `dist/`. |
-| `npm run preview` | Serve the `dist/` build locally to test production. |
-| `npm run lint` | Run ESLint on `src` (`.ts`, `.tsx`), max warnings 0. |
+| `mise run fe:install` / `pnpm install` | Install dependencies. |
+| `mise run fe:dev` / `pnpm run dev` | Vite dev server (http://localhost:5173). |
+| `mise run fe:build` / `pnpm run build` | Production build → `dist/`. |
+| `mise run fe:preview` / `pnpm run preview` | Serve `dist/` locally. |
+| `mise run fe:lint` / `pnpm run lint` | ESLint on `src`. |
+| `mise run api` / `pnpm run generate:api` | Export OpenAPI (backend) and regenerate `src/api/schema.d.ts`. |
+
+After backend schema changes:
+
+```bash
+mise run api
+```
 
 ## Environment variables
 
-For Supabase (auth, etc.) you’ll use env vars prefixed with `VITE_` so Vite exposes them to the client.
-
-Configure in Vercel (and in `.env.local` for local dev):
-
 | Variable | Description |
 |----------|-------------|
-| `VITE_SUPABASE_URL` | Supabase project URL (e.g. `https://<project-ref>.supabase.co`). |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon (public) key. |
+| `VITE_BACKEND_URL` | Backend origin (default in code: `http://localhost:8000`). |
 
-Create `frontend/.env.local` for local development (do not commit secrets). Example:
+Create `frontend/.env.local` for local development:
 
 ```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_BACKEND_URL=http://localhost:8000
 ```
 
-Restart the dev server after changing `.env.local`.
+Production builds in CI use the `VITE_BACKEND_URL` GitHub secret (ALB URL).
 
-## How to use
-
-### 1. Install dependencies
+## Running
 
 ```bash
-cd frontend
-npm install
-```
-
-### 2. (Optional) Configure Supabase for local dev
-
-Create `frontend/.env.local` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` if you’re using Supabase auth or API.
-
-### 3. Run the dev server
-
-```bash
-npm run dev
-```
-
-Open http://localhost:5173. You should see the landing screen and “Play Catan”; the button handler is a placeholder (e.g. `console.log`).
-
-### 4. Build for production
-
-```bash
-npm run build
-```
-
-Artifacts go to `dist/`. Test with:
-
-```bash
-npm run preview
-```
-
-### 5. Deploy
-
-The repo’s CI/CD deploys the **frontend** to Vercel on pushes to `main`. Configure the Vercel project to use the `frontend/` directory as the root and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (and any other env) in the Vercel dashboard.
-
-## Backend integration
-
-The backend runs separately (see `backend/README.md`) and exposes a REST API (e.g. `/users`, `/users/{id}/sessions`). To call it from the frontend:
-
-- In development, backend is often at `http://localhost:8000`. Use `fetch` or a client (e.g. axios) and optionally a `VITE_API_URL` env var.
-- Ensure CORS is allowed on the backend for the frontend origin (e.g. `http://localhost:5173` and your Vercel domain). FastAPI can use `CORSMiddleware` in `app/main.py` if not already configured.
-
-## Linting
-
-ESLint runs over `src` with React hooks and React refresh plugins. Fix issues before committing:
-
-```bash
-npm run lint
+./setup.sh          # from the repo root, once
+mise run fe:dev
 ```

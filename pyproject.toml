@@ -3,15 +3,21 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "catan-monorepo"
+name = "catan-bot"
 version = "0.1.0"
-description = "Monorepo for full-stack Catan app (FastAPI backend + React frontend)."
+description = "LLM-driven Catan bot CLI (gpt-oss via Ollama)."
 authors = [
   { name = "catan-bot user" }
 ]
 requires-python = ">=3.11"
 dependencies = [
-  "SQLAlchemy>=2.0.0",
+  "typer>=0.12.0",
+  "pydantic>=2.7.0",
+  "requests>=2.31.0",
 ]
 
+[project.scripts]
+catan-bot = "catan_bot.cli:app"
 
+[tool.setuptools]
+packages = ["catan_bot"]

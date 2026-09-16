@@ -1,0 +1,165 @@
+min_version = "2026.0.0"
+
+[tools]
+python = "3.11"
+node = "22"
+# aqua still looks for pnpm-macos-* on pnpm 11; github release assets use darwin-*.
+"github:pnpm/pnpm" = "11.20.0"
+uv = "0.11.29"
+terraform = "1.16"
+tflint = "0.59"
+
+[settings]
+lockfile = true
+
+# --- install ---
+
+[tasks.install]
+description = "Install backend, frontend, and bot dependencies"
+depends = ["be:sync", "fe:install", "bot:sync"]
+
+[tasks."be:sync"]
+description = "Sync backend uv env from the lockfile"
+dir = "backend"
+run = "uv sync --frozen --all-groups"
+
+[tasks."fe:install"]
+description = "Install frontend deps from the pnpm lockfile"
+dir = "frontend"
+run = "pnpm install --frozen-lockfile"
+
+[tasks."bot:sync"]
+description = "Sync catan_bot uv env from the lockfile"
+run = "uv sync --frozen"
+
+# --- backend ---
+
+[tasks."be:dev"]
+description = "Run the FastAPI server with reload"
+dir = "backend"
+run = "uv run uvicorn app.main:create_app --factory --reload"
+
+[tasks."be:compile"]
+description = "Byte-compile backend Python"
+dir = "backend"
+run = "uv run python -m compileall app tests scripts"
+
+[tasks."be:format"]
+description = "Format backend Python with ruff"
+dir = "backend"
+run = "uv run ruff format app tests scripts"
+
+[tasks."be:format-check"]
+description = "Check backend Python formatting"
+dir = "backend"
+run = "uv run ruff format --check app tests scripts"
+
+[tasks."be:lint"]
+description = "Lint backend Python with ruff"
+dir = "backend"
+run = "uv run ruff check app tests scripts"
+
+[tasks."be:typecheck"]
+description = "Type-check backend Python with mypy"
+dir = "backend"
+run = "uv run mypy"
+
+[tasks."be:test"]
+description = "Run backend unit tests"
+dir = "backend"
+run = "uv run pytest"
+
+[tasks."be:check"]
+description = "Compile, ruff, mypy, and pytest"
+depends = ["be:compile", "be:format-check", "be:lint", "be:typecheck", "be:test"]
+
+[tasks."be:migrate"]
+description = "Apply Alembic migrations"
+dir = "backend"
+run = "uv run alembic -c ../db/alembic.ini upgrade head"
+
+[tasks."be:openapi"]
+description = "Export FastAPI OpenAPI schema for the frontend"
+dir = "backend"
+run = "uv run python scripts/export_openapi.py"
+
+[tasks."be:docker"]
+description = "Build and run the backend with docker compose"
+dir = "backend"
+run = "docker compose up --build"
+
+# --- frontend ---
+
+[tasks."fe:dev"]
+description = "Run the Vite dev server"
+dir = "frontend"
+run = "pnpm run dev"
+
+[tasks."fe:lint"]
+description = "Lint frontend TypeScript"
+dir = "frontend"
+run = "pnpm run lint"
+
+[tasks."fe:build"]
+description = "Build the frontend for production"
+dir = "frontend"
+run = "pnpm run build"
+
+[tasks."fe:preview"]
+description = "Preview the production frontend build"
+dir = "frontend"
+run = "pnpm run preview"
+
+[tasks."fe:generate-api"]
+description = "Regenerate TypeScript types from the committed OpenAPI schema"
+dir = "frontend"
+run = "pnpm run generate:api"
+
+[tasks.api]
+description = "Export OpenAPI and regenerate frontend types"
+depends = ["be:openapi"]
+dir = "frontend"
+run = "pnpm run generate:api"
+
+[tasks."fe:check"]
+description = "Lint the frontend"
+depends = ["fe:lint"]
+
+# --- bot ---
+
+[tasks."bot:choose-move"]
+description = "Run the catan_bot CLI against the sample game state"
+run = "uv run catan-bot choose-move"
+
+# --- terraform (Makefile remains the implementation) ---
+
+[tasks."tf:check"]
+description = "terraform fmt -check + validate every stack and module"
+dir = "terraform"
+run = "make check"
+
+[tasks."tf:lint"]
+description = "Run tflint recursively"
+dir = "terraform"
+run = "make lint"
+
+[tasks."tf:plan"]
+description = "Plan an environment (ENV=prod by default)"
+dir = "terraform"
+run = "make plan ENV=${ENV:-prod}"
+
+[tasks."tf:apply"]
+description = "Apply a saved plan (only when explicitly asked)"
+dir = "terraform"
+run = "make apply ENV=${ENV:-prod}"
+
+[tasks."tf:bootstrap-apply"]
+description = "Apply the one-time bootstrap stack (only when explicitly asked)"
+dir = "terraform"
+run = "make bootstrap-apply"
+
+# --- meta ---
+
+[tasks.check]
+description = "Backend quality checks (compile, ruff, mypy, pytest)"
+depends = ["be:check"]

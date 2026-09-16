@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import UUID, DateTime, ForeignKey, Integer, JSON
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy import DateTime, ForeignKey, Integer
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class GameSession(Base):
@@ -25,12 +30,12 @@ class GameSession(Base):
         user: Related User instance.
     """
 
-    __tablename__ = "game_sessions"
+    __tablename__ = 'game_sessions'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey('users.id', ondelete='CASCADE'),
         nullable=False,
         index=True,
     )
@@ -40,6 +45,6 @@ class GameSession(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
     )
-    state: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    state: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
-    user: Mapped["User"] = relationship("User", back_populates="game_sessions")
+    user: Mapped[User] = relationship('User', back_populates='game_sessions')

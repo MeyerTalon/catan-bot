@@ -11,7 +11,7 @@ from app.services.game_service import game_service
 router = APIRouter()
 
 
-@router.post("/{user_id}/sessions", response_model=GameSessionRead)
+@router.post('/{user_id}/sessions', response_model=GameSessionRead)
 def create_session_for_user(
     user_id: str,
     payload: GameSessionCreate,
@@ -34,18 +34,18 @@ def create_session_for_user(
         HTTPException: 404 if user not found.
 
     Note:
-        Requires Authorization header with valid Supabase JWT token.
+        Requires Authorization header with a valid Cognito access token.
         Users can only create their own sessions.
     """
     if str(current_user.id) != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot create sessions for other users.",
+            detail='Cannot create sessions for other users.',
         )
     return game_service.create_session(db, user_id, payload)
 
 
-@router.get("/{user_id}/sessions", response_model=list[GameSessionRead])
+@router.get('/{user_id}/sessions', response_model=list[GameSessionRead])
 def list_sessions_for_user(
     user_id: str,
     current_user: User = Depends(get_current_user),
@@ -65,7 +65,7 @@ def list_sessions_for_user(
         HTTPException: 403 if trying to access another user's sessions.
 
     Note:
-        Requires Authorization header with valid Supabase JWT token.
+        Requires Authorization header with a valid Cognito access token.
         Users can only list their own sessions.
     """
     if str(current_user.id) != user_id:

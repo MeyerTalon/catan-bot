@@ -16,6 +16,11 @@ from .ollama_client import OllamaClient
 app = typer.Typer(help="Catan bot driven by gpt-oss via Ollama.")
 
 
+@app.callback()
+def main() -> None:
+    """Catan bot CLI. Use a subcommand such as `choose-move`."""
+
+
 def _sample_initial_game_state() -> GameState:
     """Construct a tiny example game state intended to exercise the model."""
 

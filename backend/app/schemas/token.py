@@ -1,1 +1,1 @@
-"""Token schemas (e.g. JWT access/refresh). Placeholder for future use."""
+"""Token schemas (JWT access/refresh). See app.schemas.auth for the API models."""

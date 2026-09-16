@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from typing import List
 
 from sqlalchemy.orm import Session
 
@@ -30,7 +29,7 @@ def create(db: Session, *, user_id: uuid.UUID, state: dict) -> GameSession:
     return session
 
 
-def list_by_user_id(db: Session, user_id: uuid.UUID | str) -> List[GameSession]:
+def list_by_user_id(db: Session, user_id: uuid.UUID | str) -> list[GameSession]:
     """List game sessions for a user, newest first.
 
     Args:

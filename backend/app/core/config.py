@@ -8,34 +8,33 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
 
-from pydantic import BaseModel
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
-# Load backend/.env so env vars are available without exporting manually.
+# load backend/.env so env vars are available without exporting manually.
 _backend_dir = Path(__file__).resolve().parent.parent.parent
-load_dotenv(_backend_dir / ".env")
+load_dotenv(_backend_dir / '.env')
 
 
 class Settings(BaseModel):
     """Application settings loaded from environment variables.
 
     Attributes:
-        database_url: Postgres connection string (Supabase). Required.
-        supabase_project_url: Supabase project URL. Optional.
-        supabase_anon_key: Supabase anon key. Optional.
-        supabase_jwt_secret: Supabase JWT secret for token validation. Required for auth.
-        supabase_service_role_key: Supabase service role key. Optional, backend-only.
+        database_url: Postgres connection string (RDS). Required.
+        cognito_region: AWS region for the Cognito user pool.
+        cognito_user_pool_id: Cognito user pool id. Required for auth.
+        cognito_client_id: Cognito app client id. Required for auth.
+        cognito_client_secret: Cognito app client secret. Optional (public clients omit it).
         environment: "development" or "production". Defaults to "development".
     """
 
     database_url: str
-    supabase_project_url: Optional[str] = None
-    supabase_anon_key: Optional[str] = None
-    supabase_jwt_secret: Optional[str] = None
-    supabase_service_role_key: Optional[str] = None
-    environment: str = "development"
+    cognito_region: str = 'us-west-2'
+    cognito_user_pool_id: str | None = None
+    cognito_client_id: str | None = None
+    cognito_client_secret: str | None = None
+    environment: str = 'development'
 
     @property
     def is_production(self) -> bool:
@@ -44,35 +43,62 @@ class Settings(BaseModel):
         Returns:
             True if environment is "production" (case-insensitive), else False.
         """
-        return self.environment.lower() == "production"
+        return self.environment.lower() == 'production'
+
+    @property
+    def cognito_configured(self) -> bool:
+        """Whether Cognito auth settings are present.
+
+        Returns:
+            True if user pool id and client id are both set.
+        """
+        return bool(self.cognito_user_pool_id and self.cognito_client_id)
+
+    @property
+    def cognito_issuer(self) -> str:
+        """JWT issuer for the configured Cognito user pool.
+
+        Returns:
+            Cognito IdP issuer URL.
+
+        Raises:
+            RuntimeError: If the user pool id is missing.
+        """
+        if not self.cognito_user_pool_id:
+            raise RuntimeError('COGNITO_USER_POOL_ID is not set.')
+        return (
+            f'https://cognito-idp.{self.cognito_region}.amazonaws.com/'
+            f'{self.cognito_user_pool_id}'
+        )
 
 
 @lru_cache
 def get_settings() -> Settings:
     """Load settings from environment.
 
-    Loads from os.environ and backend/.env. Requires SUPABASE_DATABASE_URL to be
-    set and to be a Postgres connection string (not the Supabase project HTTPS URL).
+    Loads from os.environ and backend/.env. Requires DATABASE_URL to be set and
+    to be a Postgres connection string.
 
     Returns:
-        Cached Settings instance with database_url, optional Supabase keys, and environment.
+        Cached Settings instance with database_url, Cognito settings, and environment.
 
     Raises:
-        RuntimeError: If SUPABASE_DATABASE_URL is missing or starts with https://.
+        RuntimeError: If DATABASE_URL is missing or starts with https://.
     """
-    database_url = os.environ.get("SUPABASE_DATABASE_URL")
+    database_url = os.environ.get('DATABASE_URL')
     if not database_url:
-        raise RuntimeError("SUPABASE_DATABASE_URL environment variable must be set.")
-    if database_url.strip().lower().startswith("https://"):
+        raise RuntimeError('DATABASE_URL environment variable must be set.')
+    if database_url.strip().lower().startswith('https://'):
         raise RuntimeError(
-            "SUPABASE_DATABASE_URL must be a Postgres connection string (e.g. postgresql://... or postgresql+psycopg2://...), "
-            "not the Supabase project URL (https://...). Get the DB URL from Supabase: Project Settings → Database → Connection string."
+            'DATABASE_URL must be a Postgres connection string '
+            '(e.g. postgresql://... or postgresql+psycopg2://...).'
         )
 
     return Settings(
         database_url=database_url,
-        supabase_project_url=os.environ.get("SUPABASE_PROJECT_URL"),
-        supabase_anon_key=os.environ.get("SUPABASE_ANON_KEY"),
-        supabase_jwt_secret=os.environ.get("SUPABASE_JWT_SECRET"),
-        environment=os.environ.get("ENVIRONMENT", "development"),
+        cognito_region=os.environ.get('COGNITO_REGION', 'us-west-2'),
+        cognito_user_pool_id=os.environ.get('COGNITO_USER_POOL_ID'),
+        cognito_client_id=os.environ.get('COGNITO_CLIENT_ID'),
+        cognito_client_secret=os.environ.get('COGNITO_CLIENT_SECRET'),
+        environment=os.environ.get('ENVIRONMENT', 'development'),
     )

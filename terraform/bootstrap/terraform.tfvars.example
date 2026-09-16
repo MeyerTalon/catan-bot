@@ -1,0 +1,6 @@
+project_name = "catan"
+aws_region   = "us-west-2"
+
+# GitHub repository allowed to run Terraform from Actions. Leave commented to
+# skip the OIDC provider and CI roles entirely.
+github_repository = "MeyerTalon/catan-bot"

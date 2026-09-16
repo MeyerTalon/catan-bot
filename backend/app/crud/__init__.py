@@ -1,6 +1,6 @@
 """CRUD operations."""
 
-from app.crud.user import user_crud
 from app.crud.game import game_crud
+from app.crud.user import user_crud
 
-__all__ = ["user_crud", "game_crud"]
+__all__ = ['game_crud', 'user_crud']

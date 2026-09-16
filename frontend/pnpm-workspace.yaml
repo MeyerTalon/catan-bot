@@ -1,0 +1,4 @@
+# pnpm v11 settings for this package. Not a multi-package workspace.
+allowBuilds:
+  "@swc/core": true
+  esbuild: true
