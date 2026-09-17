@@ -114,6 +114,7 @@ EOF
   },
   "oxc.fmt.configPath": "frontend/.oxfmtrc.json",
   "oxc.lint.configPath": "frontend/.oxlintrc.json",
+  "css.lint.unknownAtRules": "ignore",
   "js/ts.tsdk.path": "frontend/node_modules/typescript/lib",
   "terminal.integrated.env.osx": {
     "VIRTUAL_ENV": "${workspaceFolder}/.venv",

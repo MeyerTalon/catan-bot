@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { HexMark } from "@/components/hex-mark";
+import { Button } from "@/components/ui/button";
 import { LoginScreen } from "./LoginScreen";
 import { SignUpScreen } from "./SignUpScreen";
 
@@ -26,29 +28,21 @@ export const AuthScreen: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center catan-bg">
-      <div className="landing-card">
-        <h1 className="landing-title">Catan Online</h1>
-        <p className="landing-subtitle">
-          Build, trade, and settle the island of Catan with smart AI opponents.
+    <div className="flex min-h-screen items-center px-6 py-16">
+      <div className="mx-auto w-full max-w-3xl">
+        <HexMark className="mb-6 text-primary" />
+        <h1 className="text-5xl font-bold tracking-tight">Catan</h1>
+        <p className="mt-3 max-w-md text-lg text-muted-foreground">
+          Build, trade, and settle the island against AI opponents.
         </p>
-
-        <button
-          type="button"
-          className="landing-play-button"
-          onClick={() => setView("login")}
-        >
-          Log in
-        </button>
-        <button
-          type="button"
-          className="landing-play-button landing-play-button-secondary"
-          onClick={() => setView("signup")}
-        >
-          Sign up
-        </button>
-
-        <p className="landing-hint">Create an account or log in to play.</p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Button size="lg" onClick={() => setView("login")}>
+            Log in
+          </Button>
+          <Button size="lg" variant="outline" onClick={() => setView("signup")}>
+            Create account
+          </Button>
+        </div>
       </div>
     </div>
   );

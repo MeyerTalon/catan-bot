@@ -1,0 +1,114 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource-variable/bricolage-grotesque";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: "Bricolage Grotesque Variable", var(--font-sans);
+  --font-sans: "Instrument Sans Variable", system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*
+ * Harbor: a single dark theme. The board's edge is sea (blue-grey ground);
+ * wheat gold is the one accent. <html class="dark"> is set in index.html so
+ * shadcn components' dark: variants apply; there is no light variant.
+ */
+:root {
+  --background: #0f1a24;
+  --foreground: #ebe6da;
+  --card: #14222f;
+  --card-foreground: #ebe6da;
+  --popover: #14222f;
+  --popover-foreground: #ebe6da;
+  --primary: #d9a441;
+  --primary-foreground: #1a1405;
+  --secondary: #1b2d3d;
+  --secondary-foreground: #ebe6da;
+  --muted: #1b2d3d;
+  --muted-foreground: #93a3ad;
+  --accent: #1b2d3d;
+  --accent-foreground: #ebe6da;
+  --destructive: #e57a66;
+  --border: #23384a;
+  --input: #34506a;
+  --ring: #d9a441;
+  /* Resource colours, for the board and charts. */
+  --chart-1: #d9a441; /* wheat */
+  --chart-2: #c2542f; /* brick */
+  --chart-3: #7fa650; /* lumber */
+  --chart-4: #8a8f94; /* ore */
+  --chart-5: #b9d68c; /* wool */
+  --radius: 0.375rem;
+  --sidebar: #14222f;
+  --sidebar-foreground: #ebe6da;
+  --sidebar-primary: #d9a441;
+  --sidebar-primary-foreground: #1a1405;
+  --sidebar-accent: #1b2d3d;
+  --sidebar-accent-foreground: #ebe6da;
+  --sidebar-border: #23384a;
+  --sidebar-ring: #d9a441;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: dark;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-heading;
+    text-wrap: balance;
+  }
+}
