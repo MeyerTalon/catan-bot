@@ -1,9 +1,9 @@
 # Build the backend image, push it to ECR, and roll the ECS service.
 # Manual only. Also callable from deploy.yml.
 #
-# The job runs in the GitHub environment named by `environment` (default
-# "production"): its protection rules (allowed branches, required reviewers)
-# gate the deploy, and the AWS role trusts that environment via OIDC.
+# The job runs in the `production` GitHub environment: its protection rules
+# (allowed branches, required reviewers) gate the deploy, and the AWS role
+# trusts that environment via OIDC.
 # Migrations run inside the container on start; the runner never touches RDS.
 #
 # Environment variables (Settings → Environments → production → Variables):
@@ -12,32 +12,23 @@ name: Deploy backend
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: GitHub environment to deploy through
-        type: environment
-        default: production
   workflow_call:
-    inputs:
-      environment:
-        type: string
-        default: production
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: deploy-backend-${{ inputs.environment }}
+  group: deploy-backend
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: production
     steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}

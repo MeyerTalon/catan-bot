@@ -83,10 +83,27 @@ description = "Export FastAPI OpenAPI schema for the frontend"
 dir = "backend"
 run = "uv run python scripts/export_openapi.py"
 
-[tasks."be:docker"]
-description = "Build and run the backend with docker compose"
-dir = "backend"
-run = "docker compose up --build"
+
+# --- local e2e stack (docker-compose.yml: postgres + moto + backend + edge) ---
+
+[tasks."dev:up"]
+description = "Start the local stack: create the Cognito pool in moto, build, run, wait for healthy"
+run = """
+docker compose run --rm cognito-local-init
+docker compose up -d --build --wait
+echo "app      http://localhost:${EDGE_PORT:-8080}"
+echo "api      http://localhost:${EDGE_PORT:-8080}/api  (direct: http://localhost:${BACKEND_PORT:-8000}/docs)"
+echo "moto     http://localhost:${MOTO_PORT:-5001}/moto-api/"
+echo "postgres postgresql://catan:catan@localhost:${POSTGRES_PORT:-5432}/catan"
+"""
+
+[tasks."dev:down"]
+description = "Stop the local stack and delete its state (postgres data, moto users)"
+run = "docker compose down --volumes --remove-orphans"
+
+[tasks."dev:logs"]
+description = "Follow logs from the local stack"
+run = "docker compose logs -f"
 
 # --- frontend ---
 

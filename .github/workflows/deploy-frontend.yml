@@ -1,5 +1,6 @@
 # Build the React app and publish it to S3 + CloudFront.
-# Manual only. Also callable from deploy.yml.
+# Manual only. Also callable from deploy.yml. Runs in the `production`
+# GitHub environment (see deploy-backend.yml).
 #
 # Environment variables (Settings → Environments → production → Variables):
 #   AWS_REGION, AWS_DEPLOY_ROLE_ARN, FRONTEND_BUCKET, CLOUDFRONT_DISTRIBUTION_ID,
@@ -8,38 +9,29 @@ name: Deploy frontend
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: GitHub environment to deploy through
-        type: environment
-        default: production
   workflow_call:
-    inputs:
-      environment:
-        type: string
-        default: production
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: deploy-frontend-${{ inputs.environment }}
+  group: deploy-frontend
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
       - run: mise run fe:install
       - name: Build
         env:
           VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
         run: mise run fe:build
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}

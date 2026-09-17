@@ -1,4 +1,4 @@
-# Plan, then (optionally) apply a Terraform environment. Manual only.
+# Plan, then (optionally) apply terraform/envs/prod. Manual only.
 #
 # Two GitHub environments are involved, both restricted to the main branch:
 #   production-plan  no reviewers — the plan job runs immediately
@@ -12,10 +12,6 @@ name: Terraform
 on:
   workflow_dispatch:
     inputs:
-      env:
-        description: Terraform environment (terraform/envs/<env>)
-        type: string
-        default: prod
       action:
         description: plan only, or plan and (after approval) apply
         type: choice
@@ -27,7 +23,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: terraform-${{ inputs.env }}
+  group: terraform-prod
   cancel-in-progress: false
 
 env:
@@ -40,11 +36,11 @@ jobs:
     environment: production-plan
     defaults:
       run:
-        working-directory: terraform/envs/${{ inputs.env }}
+        working-directory: terraform/envs/prod
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
@@ -55,7 +51,7 @@ jobs:
       - name: Summary
         run: |
           {
-            echo "## terraform plan — ${{ inputs.env }}"
+            echo "## terraform plan — prod"
             echo '```'
             grep -E "^Plan:|^No changes" plan.txt || true
             echo '```'
@@ -68,11 +64,11 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       # the plan file contains state values (including the db password);
       # keep it only long enough for the apply job to pick it up
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: inputs.action == 'plan-and-apply'
         with:
-          name: tfplan-${{ inputs.env }}
-          path: terraform/envs/${{ inputs.env }}/tfplan
+          name: tfplan-prod
+          path: terraform/envs/prod/tfplan
           retention-days: 1
           if-no-files-found: error
 
@@ -83,18 +79,18 @@ jobs:
     environment: production
     defaults:
       run:
-        working-directory: terraform/envs/${{ inputs.env }}
+        working-directory: terraform/envs/prod
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
-          name: tfplan-${{ inputs.env }}
-          path: terraform/envs/${{ inputs.env }}
+          name: tfplan-prod
+          path: terraform/envs/prod
       - name: Init
         run: terraform init -backend-config=backend.hcl
       - name: Apply the approved plan

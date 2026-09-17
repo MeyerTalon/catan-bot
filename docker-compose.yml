@@ -1,0 +1,135 @@
+# Local end-to-end stack that mirrors production (see terraform/envs/prod):
+#
+#   browser -> edge (nginx = S3 + CloudFront: static build, /api/* proxied to
+#              the backend with the prefix stripped, SPA fallback)
+#           -> backend (the same image and start command ECS runs: alembic
+#              upgrade head, then uvicorn)
+#           -> postgres 16 (= RDS) and moto (= Cognito user pool)
+#
+# Use the mise tasks rather than docker compose directly:
+#   mise run dev:up      # create the pool, build, start, wait for healthy
+#   mise run dev:logs
+#   mise run dev:down    # stop and delete the stack's state
+#
+# cognito-local-init creates the user pool, app client, and the dev user
+# (admin@example.com / Admin123) in moto (which is in-memory) and writes the
+# ids to .generated/cognito.env, which the backend reads as env_file. dev:up
+# runs it before creating the backend container so the file exists; it also
+# runs on every `up` because moto forgets everything on restart. db-seed then
+# logs the dev user in once so its users row exists in postgres from the start.
+#
+# State is deliberately ephemeral: moto forgets its users whenever it restarts,
+# and a users row that outlives its Cognito identity (same email, new sub)
+# locks that account out. So postgres gets no named volume and dev:down removes
+# everything; both stores always reset together.
+name: catan
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: catan
+      POSTGRES_USER: catan
+      POSTGRES_PASSWORD: catan
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U catan -d catan"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  moto:
+    image: motoserver/moto:5.2.3
+    environment:
+      # deterministic pool/client ids so tokens in the browser survive restarts
+      MOTO_COGNITO_IDP_USER_POOL_ID_STRATEGY: HASH
+      MOTO_COGNITO_IDP_USER_POOL_CLIENT_ID_STRATEGY: HASH
+    ports:
+      - "${MOTO_PORT:-5001}:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/moto-api/')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  cognito-local-init:
+    image: amazon/aws-cli:2.36.47
+    depends_on:
+      moto:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-west-2
+      AWS_ENDPOINT_URL: http://moto:5000
+      MOTO_HOST_PORT: ${MOTO_PORT:-5001}
+      POSTGRES_HOST_PORT: ${POSTGRES_PORT:-5432}
+    volumes:
+      - ./scripts/cognito-local-init.sh:/cognito-local-init.sh:ro
+      - ./.generated:/out
+    entrypoint: ["bash", "/cognito-local-init.sh"]
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      cognito-local-init:
+        condition: service_completed_successfully
+    env_file:
+      # COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, COGNITO_JWKS_URL from cognito-local-init
+      - path: .generated/cognito.env
+        required: false
+    environment:
+      ENVIRONMENT: development
+      PORT: "8000"
+      DATABASE_URL: postgresql://catan:catan@postgres:5432/catan
+      COGNITO_REGION: us-west-2
+      COGNITO_ENDPOINT_URL: http://moto:5000
+      # boto3 signs every request; moto accepts any credentials
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      # same probe as the alb target group; start_period matches the ecs
+      # health_check_grace_period so migrations can finish first
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 120s
+
+  db-seed:
+    image: curlimages/curl:8.22.0
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./.generated:/seed:ro
+    command:
+      - -fsS
+      - -o
+      - /dev/null
+      - -X
+      - POST
+      - -H
+      - "content-type: application/json"
+      - --data
+      - "@/seed/dev-user.json"
+      - http://backend:8000/auth/login
+
+  edge:
+    build:
+      context: frontend
+      args:
+        # same shape as prod's https://<cloudfront>/api
+        VITE_BACKEND_URL: http://localhost:${EDGE_PORT:-8080}/api
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+    ports:
+      - "${EDGE_PORT:-8080}:80"

@@ -20,7 +20,7 @@ Write Terraform that fits the `terraform/` layout: reusable modules with no envi
 - **Every module has the same five files.** `versions.tf` (required_version + providers), `variables.tf`, `main.tf`, `outputs.tf`, plus more `*.tf` only when `main.tf` would exceed ~300 lines (split by resource family, e.g. `iam.tf`, `alb.tf`).
 - **Bootstrap is append-only.** `bootstrap/` uses local state and is applied by a human once. Only add account-singletons there (state bucket, OIDC provider, org-wide roles). Never put application resources in it.
 - **Env roots own no logic.** `envs/<env>/` is `versions.tf`, `providers.tf`, `backend.tf` + `backend.hcl`, `variables.tf` (deploy-time overrides only, e.g. image tag), `main.tf`, `outputs.tf`. Adding a resource directly in an env root is acceptable only for env-specific glue (like attaching one module's policy output to another's role); anything reusable goes in a module.
-- **New environment = copy `envs/prod`, edit `locals` and `backend.hcl` `key`.** The Terraform workflow takes the env name as an input, so CI needs no change.
+- **New environment = copy `envs/prod`, edit `locals` and `backend.hcl` `key`.** The workflows are hard-wired to `prod`; a second env needs its own workflow copies and GitHub environment (see the terraform README).
 
 ## Style rules
 

@@ -26,6 +26,8 @@ frontend/
 │   ├── screens/             # Auth + game UI
 │   ├── App.tsx
 │   └── main.tsx
+├── Dockerfile               # local stack: pnpm build → nginx (stands in for S3 + CloudFront)
+├── nginx.conf               # static files, /api/* → backend with the prefix stripped, SPA fallback
 └── README.md
 ```
 
@@ -68,6 +70,6 @@ Production builds in CI use the `VITE_BACKEND_URL` GitHub secret (ALB URL).
 ## Running
 
 ```bash
-./setup.sh          # from the repo root, once
+./scripts/setup.sh  # from the repo root, once
 mise run fe:dev
 ```

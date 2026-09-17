@@ -2,18 +2,19 @@
 
 Full-stack Catan app plus an LLM move-selection bot. Top-level pieces:
 
-- `backend/` — FastAPI + SQLAlchemy + Pydantic API (`app` package) against Postgres (RDS on AWS, local Postgres in dev). Auth is proxied to Amazon Cognito (`boto3`); Cognito-JWT-protected user and session routes live here. Dockerized (`backend/Dockerfile`) for local runs and AWS ECS Fargate.
+- `backend/` — FastAPI + SQLAlchemy + Pydantic API (`app` package) against Postgres (RDS on AWS, local Postgres in dev). Auth is proxied to Amazon Cognito (`boto3`); Cognito-JWT-protected user and session routes live here. Dockerized (`backend/Dockerfile`) for the local stack and AWS ECS Fargate.
 - `frontend/` — React (Vite + TypeScript) UI; talks to the backend through the generated OpenAPI client in `frontend/src/api/`. Deployed to S3 + CloudFront.
 - `db/` — Alembic migrations; source of truth for the Postgres schema (`db/README.md`).
 - `docs/` + `mkdocs.yml` — MkDocs site for GitHub Pages. Pages are `include-markdown` wrappers around the READMEs, `terraform/ARCHITECTURE.md`, and this file, plus a Redoc page over `frontend/src/api/openapi.json`; edit the source files, not `docs/`. `mise run docs:serve` to preview, `docs:build` (strict) runs in CI
 - `terraform/` — AWS IaC: `bootstrap/` (one-time per account: state bucket, GitHub OIDC, terraform-apply role, budget), `modules/` (network, database, auth, backend-service, static-site, deploy-role), `envs/<env>/` (composes modules; remote S3 state). Diagram + cost: `terraform/ARCHITECTURE.md`; runbook: `terraform/README.md`.
 - `catan_bot/` — CLI bot that sends a structured `GameState` to `gpt-oss` via Ollama and prints a `ModelMoveResponse`.
+- `docker-compose.yml` — local end-to-end stack that mirrors prod: `postgres` (16), `moto` (Cognito emulator, `cognito-idp`), `cognito-local-init` (`scripts/cognito-local-init.sh`: creates the same pool/app client as `terraform/modules/auth` plus the dev user `admin@example.com` / `Admin123`, writes ids to gitignored `.generated/`), `db-seed` (logs that user in once through the backend so its `users` row exists on every start), `backend` (the unchanged `backend/Dockerfile`), and `edge` (`frontend/Dockerfile` + `frontend/nginx.conf`: static build, `/api/*` proxied to the backend with the prefix stripped, SPA fallback — the CloudFront behaviour). `mise run dev:up|logs|down`.
 - `mise.toml` — pinned tool versions and `mise run` tasks. Commit `mise.lock`.
-- `setup.sh` — one-time local bootstrap for vscode / cursor (`./setup.sh`).
+- `scripts/` — repo-level shell scripts: `setup.sh` (one-time local bootstrap for vscode / cursor, `./scripts/setup.sh`) and `cognito-local-init.sh` (run by the compose stack).
 
 ## Environment
 
-- Install [mise](https://mise.jdx.dev/) once (`curl https://mise.run | sh`), then from the repo root run `./setup.sh` (or `mise install` + `mise run install`) to get the pinned Python, Node, pnpm, uv, Terraform, and tflint plus project deps. Activate it in your shell (`mise activate` / `mise exec -- …`) so those shims are on PATH. Tool versions and tasks live in `mise.toml`; commit `mise.lock` when it changes. Prefer `mise run <task>` over invoking tools by hand (`mise tasks` lists them)
+- Install [mise](https://mise.jdx.dev/) once (`curl https://mise.run | sh`), then from the repo root run `./scripts/setup.sh` (or `mise install` + `mise run install`) to get the pinned Python, Node, pnpm, uv, Terraform, and tflint plus project deps. Activate it in your shell (`mise activate` / `mise exec -- …`) so those shims are on PATH. Tool versions and tasks live in `mise.toml`; commit `mise.lock` when it changes. Prefer `mise run <task>` over invoking tools by hand (`mise tasks` lists them)
 - Python 3.11+ and Node 22+ (pinned by mise; pnpm 11 needs Node >= 22.13)
 - Python is one **uv workspace**: the repo-root `pyproject.toml` (the `catan_bot` package) lists `backend/` as a member, so there is exactly one `uv.lock` and one `.venv`, both at the repo root. `mise run sync` (= `uv sync --frozen --all-packages --all-groups`) installs everything. Never create `backend/.venv` or `backend/uv.lock`; do not activate a venv by hand or install packages with pip/conda/poetry. Cursor/VS Code workspace settings point `python.defaultInterpreterPath` at `.venv` and set `python.terminal.activateEnvironment` so new integrated terminals activate it; `mise.toml` `[env] _.python.venv` does the same for shells with `mise activate`. Do not let the mise extension overwrite the interpreter to the bare mise Python.
 - Backend deps live in `backend/pyproject.toml`: from `backend/`, `uv add <package>` / `uv add --dev <package>` / `uv remove` (or `uv add --package catan-backend …` from anywhere). Bot deps live in the root `pyproject.toml`: `uv add <package>` from the root. Both update the single root `uv.lock` — commit it. Run backend Python through `uv run` from `backend/` (uv picks the member from the cwd) or the `be:*` mise tasks
@@ -21,13 +22,14 @@ Full-stack Catan app plus an LLM move-selection bot. Top-level pieces:
 - The `catan_bot` CLI (`typer`, `pydantic`, `requests`) is the root package of that workspace; it needs Ollama running with the `gpt-oss` model pulled. Run with `mise run bot:choose-move` or `uv run catan-bot`
 - Copy `backend/.env.example` to `backend/.env` for local backend config; never commit `.env` files or secrets
 - Frontend local config goes in `frontend/.env.local` (`VITE_BACKEND_URL`; see `frontend/.env.example`)
+- Local Cognito: the backend's optional `COGNITO_ENDPOINT_URL` (boto3 `endpoint_url`) and `COGNITO_JWKS_URL` (token verification) point it at an emulator; unset means real AWS. The compose stack sets them for the `backend` container, and `.generated/host.env` (written by `cognito-local-init`) carries the host-side values for `mise run be:dev` against the containers (`set -a; . .generated/host.env; set +a`). Stack state is ephemeral by design (moto is in-memory; `dev:down` also drops Postgres so users and identities never drift apart); the seeded dev user's `sub` is deterministic (moto rng seeded before creating it), so it survives even a moto-only restart. Moto's host port defaults to 5001 (macOS AirPlay owns 5000)
 - Terraform >= 1.10 (pinned by mise). `tflint` is optional and also pinned. AWS credentials go in `~/.aws/credentials` or env vars, never the repo. The only tfvars file is `terraform/bootstrap/terraform.tfvars` (copy from `.example`, gitignored); envs take their values from `locals` in `envs/<env>/main.tf`. The only secret (RDS password) is Terraform-generated into SSM Parameter Store; nothing secret passes through variables — see `terraform/README.md`
 
 ## Commands
 
 ```bash
 # one-time (from repo root; vscode / cursor)
-./setup.sh                       # mise tools, uv + pnpm deps, env files, editor settings
+./scripts/setup.sh               # mise tools, uv + pnpm deps, env files, editor settings
 # equivalent: mise install && mise run install
 
 # backend
@@ -35,7 +37,11 @@ mise run be:dev
 mise run be:check                # compile, ruff format --check, ruff check, mypy, pytest
 mise run be:format               # write ruff formatting
 mise run be:migrate
-mise run be:docker               # docker compose up --build
+
+# local e2e stack (docker running; see docker-compose.yml)
+mise run dev:up                  # cognito-local-init, build, up --wait → http://localhost:8080
+mise run dev:logs
+mise run dev:down                # stop and delete state (postgres + moto users)
 
 # frontend
 mise run fe:dev                  # Vite; opens Google Chrome via BROWSER env
@@ -62,7 +68,7 @@ mise run tf:bootstrap-apply      # one-time account foundation, local state
 
 Equivalent underlying commands (when not using mise tasks): `uv run …` from `backend/`, `pnpm run …` from `frontend/`, `make …` from `terraform/`. `mise tasks` lists every task.
 
-Backend listens at `http://localhost:8000` (docs: `http://localhost:8000/docs`). Frontend Vite server is port `5173`.
+Backend listens at `http://localhost:8000` (docs: `http://localhost:8000/docs`). Frontend Vite server is port `5173`. The compose stack serves the app at `http://localhost:8080` (API at `/api`), backend `8000`, Postgres `5432`, moto `5001` (`EDGE_PORT`, `BACKEND_PORT`, `POSTGRES_PORT`, `MOTO_PORT` override them).
 
 ## Git workflow
 
@@ -83,11 +89,11 @@ Backend listens at `http://localhost:8000` (docs: `http://localhost:8000/docs`).
 
 ## Verification
 
-CI (`.github/workflows/ci.yml`, on PRs and `main`) installs tools with mise, then runs `mise run be:check`, `mise run api` (OpenAPI drift), `mise run fe:check` + `fe:build`, `mise run docs:build`, and `mise run tf:check` + `tf:lint`. Locally, run `mise run be:check` / `mise run fe:check` / `mise run docs:build` for the area you touched (`mise run check` does all three); for Terraform run `mise run tf:check` (and `ENV=<env> mise run tf:plan` if credentials are available). Add lightweight `pytest` tests under `backend/tests/` for critical Python (see the `python-coding` skill). For UI/layout/routing/client-state changes, exercise the flow in the browser (auth, game screen, and any shared state), not just a screenshot.
+CI (`.github/workflows/ci.yml`, on PRs and `main`) installs tools with mise, then runs `mise run be:check`, `mise run api` (OpenAPI drift), `mise run fe:check` + `fe:build`, `mise run docs:build`, and `mise run tf:check` + `tf:lint`. Locally, run `mise run be:check` / `mise run fe:check` / `mise run docs:build` for the area you touched (`mise run check` does all three); for Terraform run `mise run tf:check` (and `ENV=<env> mise run tf:plan` if credentials are available). Add lightweight `pytest` tests under `backend/tests/` for critical Python (see the `python-coding` skill). For UI/layout/routing/client-state changes, exercise the flow in the browser (auth, game screen, and any shared state), not just a screenshot — `mise run dev:up` gives a prod-shaped stack with working sign-up/login and no AWS dependency. Anything that changes auth, the backend image, or the frontend build should also be checked there.
 
 ## Do not
 
-- Invent extra Docker, CI, or packaging scaffolding unless requested — Docker, GitHub Actions, and Terraform already exist; don't expand them
+- Invent extra Docker, CI, or packaging scaffolding unless requested — the Dockerfiles, `docker-compose.yml`, GitHub Actions, and Terraform already exist; don't expand them
 - Commit `.env`, `.env.local`, credentials, or secrets
 - Expand scope beyond the asked change
 - Credit yourself anywhere in the codebase or git history — no agent/model names, "generated by", or similar self-attribution in code, comments, docs, commit messages, or PRs

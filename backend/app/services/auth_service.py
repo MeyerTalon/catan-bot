@@ -41,7 +41,11 @@ def _cognito_client() -> Any:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail='Auth not configured (COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID).',
         )
-    return boto3.client('cognito-idp', region_name=settings.cognito_region)
+    return boto3.client(
+        'cognito-idp',
+        region_name=settings.cognito_region,
+        endpoint_url=settings.cognito_endpoint_url,
+    )
 
 
 def _secret_hash(username: str, settings: Settings) -> str | None:

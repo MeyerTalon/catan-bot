@@ -4,11 +4,6 @@ name: Deploy all
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: GitHub environment to deploy through
-        type: environment
-        default: production
 
 permissions:
   contents: read
@@ -17,11 +12,7 @@ permissions:
 jobs:
   backend:
     uses: ./.github/workflows/deploy-backend.yml
-    with:
-      environment: ${{ inputs.environment }}
 
   frontend:
     needs: backend
     uses: ./.github/workflows/deploy-frontend.yml
-    with:
-      environment: ${{ inputs.environment }}

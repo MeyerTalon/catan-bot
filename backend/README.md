@@ -34,10 +34,8 @@ backend/
 │   └── services/            # auth_service, user_service, game_service
 ├── scripts/
 │   └── export_openapi.py    # Writes frontend/src/api/openapi.json
-├── Dockerfile               # Docker image for local and AWS ECS
-├── docker-compose.yml       # Local: docker compose up
+├── Dockerfile               # Docker image for the local stack and AWS ECS
 ├── pyproject.toml
-├── uv.lock
 └── README.md
 ```
 
@@ -82,9 +80,11 @@ Create a `backend/.env` file (or set environment variables). The app loads `back
 | `COGNITO_USER_POOL_ID` | For auth | Cognito user pool id. |
 | `COGNITO_CLIENT_ID` | For auth | Cognito app client id. Enable `USER_PASSWORD_AUTH` on the client. |
 | `COGNITO_CLIENT_SECRET` | If confidential client | App client secret; omit for public clients. |
+| `COGNITO_ENDPOINT_URL` | No | Cognito API endpoint override for a local emulator (the compose stack sets `http://moto:5000`). Unset = real AWS. |
+| `COGNITO_JWKS_URL` | No | JWKS url override for a local emulator. Unset = `<issuer>/.well-known/jwks.json` on AWS. |
 | `ENVIRONMENT` | No | `development` (default) or `production`. |
 
-Without Cognito settings, login/signup return 503 and protected routes cannot validate JWTs.
+Without Cognito settings, login/signup return 503 and protected routes cannot validate JWTs. boto3 signs every Cognito request, so a local emulator also needs dummy `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` in the environment.
 
 ## OpenAPI
 
@@ -99,7 +99,7 @@ Commit both `frontend/src/api/openapi.json` and `frontend/src/api/schema.d.ts`. 
 
 ## Running locally
 
-From the repo root with [mise](https://mise.jdx.dev/) installed (`./setup.sh` from the repo root does this):
+From the repo root with [mise](https://mise.jdx.dev/) installed (`./scripts/setup.sh` from the repo root does this):
 
 1. **Install tools and deps:**
    ```bash
@@ -133,14 +133,11 @@ mise run be:check           # all of the above plus compileall
 
 CI runs `mise run be:check`.
 
-## Docker (local testing)
+## Docker
 
-```bash
-cd backend
-docker compose up --build
-```
+The repo-root `docker-compose.yml` runs this image together with Postgres, a Cognito emulator (moto), and the frontend edge — `mise run dev:up` from the repo root (see the root README). The container runs Alembic against `DATABASE_URL` and then uvicorn, exactly as ECS does.
 
-API: **http://localhost:8000**.
+To build or run the image on its own:
 
 ```bash
 docker build -f backend/Dockerfile -t catan-backend .   # context is the repo root (image includes db/)

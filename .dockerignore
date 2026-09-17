@@ -22,4 +22,6 @@ supabase
 backend/tests
 backend/scripts
 backend/Dockerfile
-backend/docker-compose*.yml
+docker-compose*.yml
+scripts
+.generated

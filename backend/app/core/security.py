@@ -30,7 +30,7 @@ def _jwks_client() -> jwt.PyJWKClient:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail='JWT validation not configured (missing Cognito settings).',
         )
-    return jwt.PyJWKClient(f'{settings.cognito_issuer}/.well-known/jwks.json')
+    return jwt.PyJWKClient(settings.jwks_url)
 
 
 def decode_jwt(token: str) -> dict[str, Any]:

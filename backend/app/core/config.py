@@ -26,6 +26,10 @@ class Settings(BaseModel):
         cognito_user_pool_id: Cognito user pool id. Required for auth.
         cognito_client_id: Cognito app client id. Required for auth.
         cognito_client_secret: Cognito app client secret. Optional (public clients omit it).
+        cognito_endpoint_url: override for the Cognito API endpoint. Only for a local
+            emulator; None uses the real AWS endpoint.
+        cognito_jwks_url: override for the JWKS url used to verify tokens. Only for a
+            local emulator; None derives it from the issuer.
         environment: "development" or "production". Defaults to "development".
     """
 
@@ -34,6 +38,8 @@ class Settings(BaseModel):
     cognito_user_pool_id: str | None = None
     cognito_client_id: str | None = None
     cognito_client_secret: str | None = None
+    cognito_endpoint_url: str | None = None
+    cognito_jwks_url: str | None = None
     environment: str = 'development'
 
     @property
@@ -71,6 +77,18 @@ class Settings(BaseModel):
             f'{self.cognito_user_pool_id}'
         )
 
+    @property
+    def jwks_url(self) -> str:
+        """JWKS url for verifying tokens from the configured user pool.
+
+        Returns:
+            COGNITO_JWKS_URL when set (local emulator), else the issuer's well-known url.
+
+        Raises:
+            RuntimeError: If no override is set and the user pool id is missing.
+        """
+        return self.cognito_jwks_url or f'{self.cognito_issuer}/.well-known/jwks.json'
+
 
 @lru_cache
 def get_settings() -> Settings:
@@ -100,5 +118,7 @@ def get_settings() -> Settings:
         cognito_user_pool_id=os.environ.get('COGNITO_USER_POOL_ID'),
         cognito_client_id=os.environ.get('COGNITO_CLIENT_ID'),
         cognito_client_secret=os.environ.get('COGNITO_CLIENT_SECRET'),
+        cognito_endpoint_url=os.environ.get('COGNITO_ENDPOINT_URL'),
+        cognito_jwks_url=os.environ.get('COGNITO_JWKS_URL'),
         environment=os.environ.get('ENVIRONMENT', 'development'),
     )

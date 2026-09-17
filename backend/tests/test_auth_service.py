@@ -69,6 +69,36 @@ def _auth_result() -> dict[str, Any]:
     }
 
 
+def test_cognito_client_forwards_endpoint_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv('COGNITO_ENDPOINT_URL', 'http://moto:5000')
+    config.get_settings.cache_clear()
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        auth_mod.boto3, 'client', lambda service, **kwargs: calls.append(kwargs)
+    )
+
+    auth_mod._cognito_client()
+
+    assert calls == [{'region_name': 'us-west-2', 'endpoint_url': 'http://moto:5000'}]
+
+
+def test_cognito_client_defaults_to_aws_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv('COGNITO_ENDPOINT_URL', raising=False)
+    config.get_settings.cache_clear()
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        auth_mod.boto3, 'client', lambda service, **kwargs: calls.append(kwargs)
+    )
+
+    auth_mod._cognito_client()
+
+    assert calls == [{'region_name': 'us-west-2', 'endpoint_url': None}]
+
+
 def test_login_returns_session(monkeypatch: pytest.MonkeyPatch) -> None:
     client = MagicMock()
     client.initiate_auth.return_value = {'AuthenticationResult': _auth_result()}

@@ -2,7 +2,7 @@
 # bootstrap a local vscode / cursor workspace: mise tools, uv + pnpm deps, env files.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 log() {
@@ -20,7 +20,7 @@ fi
 
 if [[ "${1:-}" == '-h' || "${1:-}" == '--help' ]]; then
   cat <<'EOF'
-usage: ./setup.sh
+usage: ./scripts/setup.sh
 
 one-time local bootstrap for vscode / cursor:
 
@@ -70,7 +70,7 @@ install_mise() {
   log 'installing mise'
   curl -fsSL https://mise.run | sh
   ensure_mise_on_path
-  command -v mise >/dev/null 2>&1 || die 'mise installed but not on PATH; open a new terminal and re-run ./setup.sh'
+  command -v mise >/dev/null 2>&1 || die 'mise installed but not on PATH; open a new terminal and re-run ./scripts/setup.sh'
 }
 
 write_vscode_workspace() {
@@ -206,6 +206,8 @@ next:
   2. python interpreter: .venv/bin/python  (status bar, or "Python: Select Interpreter")
   3. mise run be:dev
   4. mise run fe:dev
+  or, with docker running, the whole stack against a local cognito emulator:
+     mise run dev:up
 
 reload the window if the new interpreter or extensions do not appear.
 EOF

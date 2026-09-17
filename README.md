@@ -45,26 +45,48 @@ Everything is pinned and driven by [mise](https://mise.jdx.dev/) — one Python 
 
 ```bash
 git clone https://github.com/MeyerTalon/catan-bot.git && cd catan-bot
-./setup.sh                 # installs mise + pinned tools, syncs deps, copies .env examples, writes editor settings
+./scripts/setup.sh         # installs mise + pinned tools, syncs deps, copies .env examples, writes editor settings
 ```
 
-Then:
-
-1. Start a local Postgres, e.g. `docker run -d --name catan-pg -e POSTGRES_USER=catan -e POSTGRES_PASSWORD=password -e POSTGRES_DB=catan -p 5432:5432 postgres:16`
-2. Fill in `backend/.env` — `DATABASE_URL` (above) and the Cognito pool/client IDs (there is no local Cognito; use the prod pool from `terraform output` or one you create by hand).
-3. Run it:
+Then, with Docker running:
 
 ```bash
-mise run be:migrate        # alembic upgrade head
-mise run be:dev            # FastAPI with reload → http://localhost:8000 (docs at /docs)
-mise run fe:dev            # Vite → http://localhost:5173
+mise run dev:up            # whole stack → http://localhost:8080
 ```
+
+That is the production topology on your laptop, with no AWS account involved (`docker-compose.yml`):
+
+```
+browser ─▶ edge (nginx) ─┬─ /       ─▶ frontend/dist (pnpm build)
+                         └─ /api/*  ─▶ backend (backend/Dockerfile: alembic, then uvicorn) ─▶ postgres:16
+                                                        └─ boto3 ─▶ moto (Cognito emulator)
+```
+
+| Production | Local |
+|---|---|
+| CloudFront: S3 static site, `/api/*` → ALB with the prefix stripped, SPA fallback | `edge` — nginx built by `frontend/Dockerfile` with `frontend/nginx.conf`, http://localhost:8080 |
+| ECS task from `backend/Dockerfile`, Alembic on start, `/health` target-group checks | `backend` — the same image and command; also http://localhost:8000 (docs at `/docs`) |
+| RDS Postgres 16 | `postgres` — `localhost:5432`, user/db `catan` |
+| Cognito user pool + app client (`terraform/modules/auth`) | `moto` — [moto](https://docs.getmoto.org/) `cognito-idp` on http://localhost:5001; `cognito-local-init` (`scripts/cognito-local-init.sh`) creates the same pool and client plus the dev user, writes their ids to `.generated/`, and `db-seed` logs the dev user in once so its `users` row exists |
+
+Log in at http://localhost:8080 as the seeded dev user **`admin@example.com` / `Admin123`** (created in moto and in Postgres on every start), or sign up with any email and a prod-policy password (8+ characters, upper, lower, digit). `mise run dev:logs` follows logs; `mise run dev:down` stops the stack **and deletes its state** — moto keeps users in memory, so Postgres is reset with it rather than keeping rows for identities that no longer exist. Host ports are overridable with `EDGE_PORT`, `BACKEND_PORT`, `POSTGRES_PORT`, and `MOTO_PORT` (5001 by default because macOS AirPlay listens on 5000).
+
+For hot reload while iterating, run the app on the host against the stack's Postgres and Cognito — `cognito-local-init` writes a ready-made env for that:
+
+```bash
+set -a; . .generated/host.env; set +a
+mise run be:dev            # FastAPI with reload → http://localhost:8000
+mise run fe:dev            # Vite → http://localhost:5173 (VITE_BACKEND_URL=http://localhost:8000 in frontend/.env.local)
+```
+
+The backend's `COGNITO_ENDPOINT_URL` / `COGNITO_JWKS_URL` settings are what point it at the emulator; leave them unset in `backend/.env` to use a real pool (see [backend/README.md](backend/README.md)).
 
 ## Day-to-day
 
 | Task | Command |
 |---|---|
 | Sync deps after pulling | `mise run install` |
+| Local stack (Docker: postgres, moto, backend, edge) | `mise run dev:up` · `mise run dev:logs` · `mise run dev:down` |
 | Backend server / migrations | `mise run be:dev` · `mise run be:migrate` |
 | Backend checks (compile, ruff, mypy, pytest) | `mise run be:check` |
 | Frontend dev server | `mise run fe:dev` |
@@ -94,13 +116,14 @@ Builds a small sample `GameState`, sends it to the model, and prints the model's
 backend/        FastAPI app (app/), tests/, scripts/, Dockerfile — a member of the root uv workspace
 frontend/       React + Vite app; src/api/ is generated from the backend's OpenAPI schema
 db/             Alembic migrations — the source of truth for the Postgres schema
+docker-compose.yml  local end-to-end stack mirroring prod (writes gitignored .generated/)
 catan_bot/      the LLM bot CLI (root package of the uv workspace)
 terraform/      bootstrap/ (state bucket, OIDC, budget) · modules/ · envs/prod/ · ARCHITECTURE.md · README.md
 docs/           MkDocs site (GitHub Pages); pages include the READMEs next to the code + a Redoc API reference
 .github/        ci.yml (checks) · docs.yml (Pages) · deploy-backend / deploy-frontend / deploy / terraform (manual)
 .agents/        shared agent skills and rules (symlinked into .claude/ and .cursor/); AGENTS.md is the entry point
 mise.toml       pinned tool versions and every `mise run` task
-setup.sh        one-time local bootstrap
+scripts/        setup.sh (one-time local bootstrap) · cognito-local-init.sh (Cognito pool/client in moto for the stack)
 ```
 
 Each area has its own README: [backend](backend/README.md) · [frontend](frontend/README.md) · [db](db/README.md) · [terraform](terraform/README.md).

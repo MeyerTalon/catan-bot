@@ -131,7 +131,7 @@ Workflows (Actions tab → Run workflow):
 
 | Workflow | What it does |
 |---|---|
-| **Terraform** | `plan` (default) or `plan-and-apply` for `terraform/envs/<env>`. The plan lands in the job summary; the apply job waits for your approval on `production` and applies exactly that plan file. |
+| **Terraform** | `plan` (default) or `plan-and-apply` for `terraform/envs/prod`. The plan lands in the job summary; the apply job waits for your approval on `production` and applies exactly that plan file. |
 | **Deploy backend** | builds the image, pushes `:sha` + `:latest`, rolls the ECS service, waits until stable. Migrations run in the container. |
 | **Deploy frontend** | builds with `VITE_BACKEND_URL`, syncs S3, invalidates CloudFront. |
 | **Deploy all** | backend, then frontend. |
@@ -157,7 +157,7 @@ Pause the database when idle: `aws rds stop-db-instance --db-instance-identifier
 
 1. `cp -r envs/prod envs/staging`; in `main.tf` set `environment = "staging"`, `deletion_protection = false`, `skip_final_snapshot = true`, `force_destroy = true`.
 2. In `envs/staging/backend.hcl` set `key = "envs/staging/terraform.tfstate"`.
-3. `make init ENV=staging && make plan ENV=staging`. The Terraform workflow takes the env name as an input, so nothing in CI changes; for separate approval rules, add a `staging` GitHub environment and a `github_environments` entry on the roles.
+3. `make init ENV=staging && make plan ENV=staging`. The workflows are hard-wired to `prod`/`production`; a second env needs its own copy of `terraform.yml` (and deploy workflows) pointing at `envs/staging` and a `staging` GitHub environment, plus a `github_environments` entry on the roles.
 
 Each environment is its own VPC and state file; only the bootstrap bucket and OIDC provider are shared. A second env roughly doubles the bill.
 
