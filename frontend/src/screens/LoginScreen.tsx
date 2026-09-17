@@ -1,6 +1,12 @@
 import React, { useState } from "react";
-import { api, apiErrorMessage } from "../api/client";
-import { setSession } from "../lib/session";
+import { CircleAlert } from "lucide-react";
+import { api, apiErrorMessage } from "@/api/client";
+import { AuthShell } from "@/components/auth-shell";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { setSession } from "@/lib/session";
 
 type LoginScreenProps = {
   onSwitchToSignUp: () => void;
@@ -38,70 +44,55 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center catan-bg">
-      <div className="auth-card">
-        <button
-          type="button"
-          onClick={onBack}
-          className="auth-back"
-          aria-label="Back to home"
-        >
-          ← Back
-        </button>
-        <h1 className="auth-title">Log in</h1>
-        <p className="auth-subtitle">Sign in with your email and password.</p>
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          <label htmlFor="login-email" className="auth-label">
-            Email
-          </label>
-          <input
+    <AuthShell
+      title="Log in"
+      description="Use the email you signed up with."
+      onBack={onBack}
+      footer={
+        <>
+          No account?
+          <Button variant="link" className="px-1" onClick={onSwitchToSignUp}>
+            Sign up
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="login-email">Email</Label>
+          <Input
             id="login-email"
             type="email"
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="auth-input"
             placeholder="you@example.com"
             required
           />
-
-          <label htmlFor="login-password" className="auth-label">
-            Password
-          </label>
-          <input
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="login-password">Password</Label>
+          <Input
             id="login-password"
             type="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="auth-input"
-            placeholder="••••••••"
             required
           />
+        </div>
 
-          {error && <p className="auth-error">{error}</p>}
+        {error && (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-          <button
-            type="submit"
-            className="landing-play-button auth-submit"
-            disabled={loading}
-          >
-            {loading ? "Signing in…" : "Log in"}
-          </button>
-        </form>
-
-        <p className="auth-switch">
-          Don’t have an account?{" "}
-          <button
-            type="button"
-            onClick={onSwitchToSignUp}
-            className="auth-link"
-          >
-            Sign up
-          </button>
-        </p>
-      </div>
-    </div>
+        <Button type="submit" className="mt-2 w-full" disabled={loading}>
+          {loading ? "Logging in…" : "Log in"}
+        </Button>
+      </form>
+    </AuthShell>
   );
 };

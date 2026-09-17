@@ -1,6 +1,12 @@
 import React, { useState } from "react";
-import { api, apiErrorMessage } from "../api/client";
-import { setSession } from "../lib/session";
+import { CircleAlert } from "lucide-react";
+import { api, apiErrorMessage } from "@/api/client";
+import { AuthShell } from "@/components/auth-shell";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { setSession } from "@/lib/session";
 
 type SignUpScreenProps = {
   onSwitchToLogin: () => void;
@@ -47,102 +53,82 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center catan-bg">
-        <div className="auth-card">
-          <h1 className="auth-title">Check your email</h1>
-          <p className="auth-subtitle">
-            We’ve sent you a confirmation link. Click it to verify your account,
-            then you can log in.
-          </p>
-          <button
-            type="button"
-            onClick={onSwitchToLogin}
-            className="landing-play-button auth-submit"
-          >
-            Go to log in
-          </button>
-        </div>
-      </div>
+      <AuthShell
+        title="Check your email"
+        description="We’ve sent you a confirmation link. Click it to verify your account, then log in."
+      >
+        <Button className="w-full" onClick={onSwitchToLogin}>
+          Go to log in
+        </Button>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center catan-bg">
-      <div className="auth-card">
-        <button
-          type="button"
-          onClick={onBack}
-          className="auth-back"
-          aria-label="Back to home"
-        >
-          ← Back
-        </button>
-        <h1 className="auth-title">Sign up</h1>
-        <p className="auth-subtitle">
-          Create an account with email and password.
-        </p>
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          <label htmlFor="signup-email" className="auth-label">
-            Email
-          </label>
-          <input
+    <AuthShell
+      title="Create account"
+      description="Sign up with an email and password."
+      onBack={onBack}
+      footer={
+        <>
+          Already have an account?
+          <Button variant="link" className="px-1" onClick={onSwitchToLogin}>
+            Log in
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="signup-email">Email</Label>
+          <Input
             id="signup-email"
             type="email"
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="auth-input"
             placeholder="you@example.com"
             required
           />
-
-          <label htmlFor="signup-username" className="auth-label">
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="signup-username">
             Username
-          </label>
-          <input
+            <span className="font-normal text-muted-foreground">optional</span>
+          </Label>
+          <Input
             id="signup-username"
             type="text"
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="auth-input"
             placeholder="catan_player"
           />
-
-          <label htmlFor="signup-password" className="auth-label">
-            Password
-          </label>
-          <input
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="signup-password">Password</Label>
+          <Input
             id="signup-password"
             type="password"
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="auth-input"
-            placeholder="••••••••"
             required
             minLength={6}
           />
+        </div>
 
-          {error && <p className="auth-error">{error}</p>}
+        {error && (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-          <button
-            type="submit"
-            className="landing-play-button auth-submit"
-            disabled={loading}
-          >
-            {loading ? "Creating account…" : "Sign up"}
-          </button>
-        </form>
-
-        <p className="auth-switch">
-          Already have an account?{" "}
-          <button type="button" onClick={onSwitchToLogin} className="auth-link">
-            Log in
-          </button>
-        </p>
-      </div>
-    </div>
+        <Button type="submit" className="mt-2 w-full" disabled={loading}>
+          {loading ? "Creating account…" : "Create account"}
+        </Button>
+      </form>
+    </AuthShell>
   );
 };

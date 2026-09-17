@@ -10,6 +10,7 @@ Wire types are generated from the backend OpenAPI schema. Do not hand-edit `src/
 - **TypeScript**
 - **Vite** 5
 - **pnpm** – package manager (`pnpm-lock.yaml`)
+- **Tailwind CSS** 4 (`@tailwindcss/vite`) + **shadcn/ui** (`radix-nova` preset, Lucide icons) – styling; see [Styling](#styling)
 - **openapi-fetch** + **openapi-typescript** – typed client from FastAPI `/openapi.json`
 - **oxlint** + **oxfmt** – linting and formatting (`.oxlintrc.json`, `.oxfmtrc.json`; 80 cols, prettier-compatible style)
 
@@ -22,10 +23,17 @@ frontend/
 │   │   ├── openapi.json     # Exported from FastAPI (committed)
 │   │   ├── schema.d.ts      # Generated TS types (committed)
 │   │   └── client.ts        # openapi-fetch client
-│   ├── lib/session.ts       # Local session storage for Cognito tokens
+│   ├── components/
+│   │   ├── ui/              # shadcn/ui components (CLI-generated; re-add, don't hand-edit)
+│   │   └── *.tsx            # App-specific shared components (auth shell, hex mark)
+│   ├── lib/
+│   │   ├── session.ts       # Local session storage for Cognito tokens
+│   │   └── utils.ts         # shadcn `cn()` helper
 │   ├── screens/             # Auth + game UI
+│   ├── index.css            # Tailwind entry + theme tokens (the only stylesheet)
 │   ├── App.tsx
 │   └── main.tsx
+├── components.json          # shadcn/ui config (aliases, preset, css path)
 ├── Dockerfile               # local stack: pnpm build → nginx (stands in for S3 + CloudFront)
 ├── nginx.conf               # static files, /api/* → backend with the prefix stripped, SPA fallback
 └── README.md
@@ -51,6 +59,18 @@ After backend schema changes:
 
 ```bash
 mise run api
+```
+
+## Styling
+
+One theme, dark only ("Harbor": blue-grey ground, wheat-gold accent). Every colour, radius, and font is a CSS variable in `src/index.css` (`:root` block); components reference only the shadcn token names (`bg-background`, `text-muted-foreground`, `bg-primary`, …), so a theme change is a one-block edit. `<html class="dark">` in `index.html` turns on the components' `dark:` variants. Fonts are self-hosted via `@fontsource-variable/*` (Instrument Sans for text, Bricolage Grotesque for headings via `font-heading`).
+
+Import project modules through the `@/` alias (`@/components/ui/button`, `@/lib/session`); it is configured in `tsconfig.json` and `vite.config.ts`.
+
+Add shadcn components with the CLI from `frontend/` (they land in `src/components/ui/` and are exempt from the `react/only-export-components` lint rule):
+
+```bash
+pnpm dlx shadcn@latest add dialog
 ```
 
 ## Environment variables
