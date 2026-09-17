@@ -26,13 +26,7 @@ variable "ecr_repository_arns" {
 }
 
 variable "ecs_service_arns" {
-  description = "ECS services the role may redeploy."
-  type        = list(string)
-  default     = []
-}
-
-variable "ecs_task_role_arns" {
-  description = "Task/execution role ARNs the role may pass when registering task definitions."
+  description = "ECS services the role may redeploy (UpdateService --force-new-deployment)."
   type        = list(string)
   default     = []
 }
@@ -45,12 +39,6 @@ variable "s3_bucket_arns" {
 
 variable "cloudfront_distribution_arns" {
   description = "CloudFront distributions the role may invalidate."
-  type        = list(string)
-  default     = []
-}
-
-variable "ecs_task_definition_arns" {
-  description = "Task definition ARNs (wildcard revision) the role may run one-off tasks from, e.g. migrations."
   type        = list(string)
   default     = []
 }

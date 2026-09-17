@@ -1,9 +1,12 @@
 # Local testing: build and run the backend in a container.
 # From backend/: docker compose up --build
-# Requires backend/.env with DATABASE_URL and Cognito settings.
+# Requires backend/.env with DATABASE_URL and Cognito settings. The container
+# runs Alembic migrations against DATABASE_URL before starting the server.
 services:
   backend:
-    build: .
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     env_file: .env

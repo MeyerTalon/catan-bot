@@ -35,7 +35,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
     Registers lifespan, CORS, and the v1 API router (health, auth, users,
-    game sessions, admin stub). The OpenAPI schema at /openapi.json is the
+    game sessions). The OpenAPI schema at /openapi.json is the
     source of truth for frontend wire types.
 
     Returns:

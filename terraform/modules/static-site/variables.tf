@@ -14,31 +14,19 @@ variable "force_destroy" {
   default     = false
 }
 
-variable "domain_names" {
-  description = "Custom domain aliases for the distribution. Requires certificate_arn."
-  type        = list(string)
-  default     = []
-}
-
-variable "certificate_arn" {
-  description = "ACM certificate ARN in us-east-1 covering domain_names. Empty uses the default *.cloudfront.net cert."
+variable "api_origin_domain_name" {
+  description = "Hostname (e.g. the ALB DNS name) that requests under api_path_prefix are proxied to over plain HTTP. Empty disables the API behavior."
   type        = string
   default     = ""
+}
+
+variable "api_path_prefix" {
+  description = "Path prefix that is routed to the API origin. The prefix is stripped before forwarding, so /api/health reaches the origin as /health."
+  type        = string
+  default     = "/api"
 
   validation {
-    condition     = var.certificate_arn == "" || can(regex("^arn:aws:acm:us-east-1:", var.certificate_arn))
-    error_message = "CloudFront certificates must be issued in us-east-1."
+    condition     = can(regex("^/[a-z0-9-]+$", var.api_path_prefix))
+    error_message = "api_path_prefix must look like /api (leading slash, no trailing slash)."
   }
-}
-
-variable "spa_fallback" {
-  description = "Serve index.html with 200 for 403/404 so client-side routing works."
-  type        = bool
-  default     = true
-}
-
-variable "price_class" {
-  description = "CloudFront price class. PriceClass_100 = North America + Europe only."
-  type        = string
-  default     = "PriceClass_100"
 }

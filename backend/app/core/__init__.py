@@ -1,4 +1,4 @@
-"""Core functionality: config, security, logging, exceptions."""
+"""Core functionality: config and security."""
 
 from .config import Settings, get_settings
 

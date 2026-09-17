@@ -10,7 +10,7 @@ FastAPI backend for the Catan app. Uses **RDS Postgres** (SQLAlchemy + Alembic) 
 - **Alembic** – schema migrations in `db/`
 - **Postgres** – RDS (connection string in `DATABASE_URL`)
 - **Amazon Cognito** – login/signup and JWT issuance
-- **uv** – dependency and virtualenv management (`uv sync`, `uv run`, `uv add`)
+- **uv** – dependency management. The backend is a member of the repo-root uv workspace: one `uv.lock` and one `.venv` at the repo root (`mise run sync`); `uv run …` from `backend/` uses it
 - **ruff** – formatter and linter (dev)
 - **mypy** – type checker (dev)
 - **pytest** – unit tests (dev)
@@ -25,15 +25,13 @@ backend/
 │   │   ├── deps.py          # Shared dependencies (e.g. get_db)
 │   │   └── v1/
 │   │       ├── api.py       # v1 router wiring
-│   │       └── endpoints/   # health, auth, users, games, admin
-│   ├── core/                # config, security, logging, exceptions
+│   │       └── endpoints/   # health, auth, users, games
+│   ├── core/                # config, security
 │   ├── crud/                # DB operations (user, game)
 │   ├── db/                  # engine, session
 │   ├── models/              # SQLAlchemy models (User, GameSession)
 │   ├── schemas/             # Pydantic request/response schemas
-│   ├── services/            # auth_service, user_service, game_service
-│   ├── middleware/          # CORS, etc.
-│   └── utils/               # constants, helpers
+│   └── services/            # auth_service, user_service, game_service
 ├── scripts/
 │   └── export_openapi.py    # Writes frontend/src/api/openapi.json
 ├── Dockerfile               # Docker image for local and AWS ECS
@@ -106,7 +104,7 @@ From the repo root with [mise](https://mise.jdx.dev/) installed (`./setup.sh` fr
 1. **Install tools and deps:**
    ```bash
    mise install
-   mise run be:sync
+   mise run sync      # one uv env at the repo root for backend + bot
    ```
 2. **Set `DATABASE_URL` and Cognito vars** in `backend/.env`.
 3. **Apply migrations:**
@@ -123,7 +121,7 @@ From the repo root with [mise](https://mise.jdx.dev/) installed (`./setup.sh` fr
 
 ## Quality checks
 
-From the repo root after `mise install` / `mise run be:sync`:
+From the repo root after `mise install` / `mise run sync`:
 
 ```bash
 mise run be:format          # format (single quotes, line length 88)
@@ -145,7 +143,7 @@ docker compose up --build
 API: **http://localhost:8000**.
 
 ```bash
-docker build -f backend/Dockerfile -t catan-backend backend
+docker build -f backend/Dockerfile -t catan-backend .   # context is the repo root (image includes db/)
 docker run --rm -p 8000:8000 --env-file backend/.env -e PORT=8000 catan-backend
 ```
 

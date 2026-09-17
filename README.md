@@ -24,7 +24,7 @@ From the repo root in vscode / cursor:
 ./setup.sh
 ```
 
-Installs [mise](https://mise.jdx.dev/) if needed, pins tools from `mise.toml`, syncs the backend and bot uv environments, installs frontend pnpm deps, copies env examples when missing, and writes `.vscode/` workspace settings (Python interpreter = `backend/.venv`). Then fill in `backend/.env` and run `mise run be:dev` / `mise run fe:dev`.
+Installs [mise](https://mise.jdx.dev/) if needed, pins tools from `mise.toml`, syncs the single uv workspace env (`.venv` at the root, bot + backend), installs frontend pnpm deps, copies env examples when missing, and writes `.vscode/` workspace settings (Python interpreter = `.venv` at the repo root). Then fill in `backend/.env` and run `mise run be:dev` / `mise run fe:dev`.
 
 ## Backend (FastAPI + RDS + Cognito)
 
@@ -69,7 +69,7 @@ mise run be:migrate
 
 Workflow: `.github/workflows/ci-cd.yml`
 
-On push to `main`: compile/test backend, regenerate OpenAPI types and fail if they drifted, build the frontend, run Alembic against RDS, push the backend image to ECR, update ECS, sync `frontend/dist` to S3, invalidate CloudFront.
+On push to `main`: compile/test backend, regenerate OpenAPI types and fail if they drifted, build the frontend, push the backend image to ECR, update ECS (the container runs Alembic on start), sync `frontend/dist` to S3, invalidate CloudFront.
 
 ### Required GitHub secrets
 
@@ -77,13 +77,12 @@ On push to `main`: compile/test backend, regenerate OpenAPI types and fail if th
 |--------|---------|
 | `AWS_ROLE_ARN` | IAM role for GitHub OIDC (`terraform output github_deploy_role_arn` once `github_repository` is set). |
 | `AWS_REGION` | e.g. `us-west-2` |
-| `DATABASE_URL` | RDS connection string for Alembic |
 | `ECR_REPOSITORY` | Full ECR repo URI |
 | `ECS_CLUSTER` | ECS cluster name |
 | `ECS_SERVICE` | ECS service name |
 | `FRONTEND_BUCKET` | S3 bucket for the Vite build |
 | `CLOUDFRONT_DISTRIBUTION_ID` | CloudFront distribution id |
-| `VITE_BACKEND_URL` | Public backend origin baked into the frontend build |
+| `VITE_BACKEND_URL` | Public API base baked into the frontend build: the terraform `backend_url` output (`https://<cloudfront>/api`) |
 
 Cognito user pool id/client id are backend runtime env (ECS task), not frontend secrets.
 
@@ -111,7 +110,7 @@ From the project root:
 
 ```bash
 mise install
-mise run bot:sync
+mise run sync      # same shared uv env as the backend
 ```
 
 ## Running the bot (sample game state)
@@ -129,4 +128,3 @@ This will:
 - Expect a structured `ModelMoveResponse` JSON object in return.
 - Print the model's reasoning and the chosen action.
 
-The CLI command has a `--no-sample` flag reserved for future integration with a real game engine or external state source.

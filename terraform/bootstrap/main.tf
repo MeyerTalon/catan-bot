@@ -1,10 +1,10 @@
 # One-time, per-account foundation for every other stack:
 #   * the S3 bucket that stores remote state (native lockfile locking, no DynamoDB)
 #   * the GitHub Actions OIDC provider (one per AWS account)
-#   * two CI roles for Terraform itself: read-only plan on pull requests,
-#     admin apply on the main branch
+#   * one CI role that may run `terraform apply` from the main branch
+#   * a monthly cost budget so "free tier" stays free
 #
-# Apply once with local state, then never touch it unless the account changes.
+# Apply once with local state, then leave it alone.
 
 data "aws_caller_identity" "current" {}
 
@@ -52,23 +52,8 @@ resource "aws_s3_bucket_public_access_block" "state" {
   restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "state" {
-  bucket = aws_s3_bucket.state.id
-
-  rule {
-    id     = "expire-old-versions"
-    status = "Enabled"
-
-    filter {}
-
-    noncurrent_version_expiration {
-      noncurrent_days = 90
-    }
-  }
-}
-
 # ---------------------------------------------------------------------------
-# github oidc
+# github oidc + terraform apply role
 # ---------------------------------------------------------------------------
 
 resource "aws_iam_openid_connect_provider" "github" {
@@ -83,34 +68,6 @@ resource "aws_iam_openid_connect_provider" "github" {
     "6938fd4d98bab03faadb97b34396831e3780aea1",
     "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
   ]
-}
-
-data "aws_iam_policy_document" "github_plan_assume" {
-  count = local.github_enabled ? 1 : 0
-
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github[0].arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringLike"
-      variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_repository}:pull_request",
-        "repo:${var.github_repository}:ref:refs/heads/${var.terraform_apply_branch}",
-      ]
-    }
-  }
 }
 
 data "aws_iam_policy_document" "github_apply_assume" {
@@ -138,56 +95,6 @@ data "aws_iam_policy_document" "github_apply_assume" {
   }
 }
 
-# state access shared by both roles. plan runs with -lock=false so it only
-# needs to read; apply needs to write state and the lockfile.
-data "aws_iam_policy_document" "state_read" {
-  statement {
-    actions   = ["s3:ListBucket"]
-    resources = [aws_s3_bucket.state.arn]
-  }
-
-  statement {
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.state.arn}/*"]
-  }
-
-  # ReadOnlyAccess can describe secrets but not read them; refreshing
-  # aws_secretsmanager_secret_version resources needs the value.
-  statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = ["arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-*"]
-  }
-}
-
-data "aws_iam_policy_document" "state_write" {
-  statement {
-    actions   = ["s3:PutObject", "s3:DeleteObject"]
-    resources = ["${aws_s3_bucket.state.arn}/*"]
-  }
-}
-
-resource "aws_iam_role" "terraform_plan" {
-  count = local.github_enabled ? 1 : 0
-
-  name               = "${var.project_name}-terraform-plan"
-  assume_role_policy = data.aws_iam_policy_document.github_plan_assume[0].json
-}
-
-resource "aws_iam_role_policy_attachment" "terraform_plan_readonly" {
-  count = local.github_enabled ? 1 : 0
-
-  role       = aws_iam_role.terraform_plan[0].name
-  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
-}
-
-resource "aws_iam_role_policy" "terraform_plan_state" {
-  count = local.github_enabled ? 1 : 0
-
-  name   = "state-read"
-  role   = aws_iam_role.terraform_plan[0].id
-  policy = data.aws_iam_policy_document.state_read.json
-}
-
 resource "aws_iam_role" "terraform_apply" {
   count = local.github_enabled ? 1 : 0
 
@@ -196,7 +103,7 @@ resource "aws_iam_role" "terraform_apply" {
 }
 
 # apply creates iam roles, vpcs, databases, ... there is no meaningful
-# least-privilege policy for "all of the infrastructure". the trust policy
+# least-privilege policy for "all of the infrastructure"; the trust policy
 # (main branch only) is the control.
 resource "aws_iam_role_policy_attachment" "terraform_apply_admin" {
   count = local.github_enabled ? 1 : 0
@@ -205,10 +112,32 @@ resource "aws_iam_role_policy_attachment" "terraform_apply_admin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-resource "aws_iam_role_policy" "terraform_apply_state" {
-  count = local.github_enabled ? 1 : 0
+# ---------------------------------------------------------------------------
+# cost guardrail (first two budgets per account are free)
+# ---------------------------------------------------------------------------
 
-  name   = "state-write"
-  role   = aws_iam_role.terraform_apply[0].id
-  policy = data.aws_iam_policy_document.state_write.json
+resource "aws_budgets_budget" "monthly" {
+  count = var.budget_alert_email != "" ? 1 : 0
+
+  name         = "${var.project_name}-monthly"
+  budget_type  = "COST"
+  limit_amount = tostring(var.budget_limit_usd)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "FORECASTED"
+    subscriber_email_addresses = [var.budget_alert_email]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = [var.budget_alert_email]
+  }
 }

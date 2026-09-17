@@ -1,6 +1,6 @@
 # Least-privilege IAM role that GitHub Actions assumes via OIDC to ship the
-# application (push images, roll the ECS service, sync the frontend). It has no
-# rights to change infrastructure; Terraform CI uses the roles from bootstrap.
+# application: push an image, roll the ECS service, sync the frontend. It has
+# no rights to change infrastructure; Terraform CI uses the role from bootstrap.
 
 data "aws_iam_policy_document" "assume" {
   statement {
@@ -48,7 +48,6 @@ data "aws_iam_policy_document" "deploy" {
         "ecr:BatchCheckLayerAvailability",
         "ecr:BatchGetImage",
         "ecr:CompleteLayerUpload",
-        "ecr:DescribeImages",
         "ecr:GetDownloadUrlForLayer",
         "ecr:InitiateLayerUpload",
         "ecr:PutImage",
@@ -61,64 +60,17 @@ data "aws_iam_policy_document" "deploy" {
   dynamic "statement" {
     for_each = length(var.ecs_service_arns) > 0 ? [1] : []
     content {
-      sid = "EcsDeploy"
-      actions = [
-        "ecs:DescribeServices",
-        "ecs:UpdateService",
-      ]
+      sid       = "EcsDeploy"
+      actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
       resources = var.ecs_service_arns
-    }
-  }
-
-  dynamic "statement" {
-    for_each = length(var.ecs_service_arns) > 0 ? [1] : []
-    content {
-      sid = "EcsTaskDefinitions"
-      actions = [
-        "ecs:DescribeTaskDefinition",
-        "ecs:RegisterTaskDefinition",
-      ]
-      resources = ["*"] # these actions do not support resource-level permissions
-    }
-  }
-
-  dynamic "statement" {
-    for_each = length(var.ecs_task_definition_arns) > 0 ? [1] : []
-    content {
-      sid       = "EcsRunTask"
-      actions   = ["ecs:RunTask"]
-      resources = var.ecs_task_definition_arns
-    }
-  }
-
-  dynamic "statement" {
-    for_each = length(var.ecs_task_definition_arns) > 0 ? [1] : []
-    content {
-      sid       = "EcsDescribeTasks"
-      actions   = ["ecs:DescribeTasks"]
-      resources = ["*"] # task arns are not known ahead of time
-    }
-  }
-
-  dynamic "statement" {
-    for_each = length(var.ecs_task_role_arns) > 0 ? [1] : []
-    content {
-      sid       = "PassEcsRoles"
-      actions   = ["iam:PassRole"]
-      resources = var.ecs_task_role_arns
     }
   }
 
   dynamic "statement" {
     for_each = length(var.s3_bucket_arns) > 0 ? [1] : []
     content {
-      sid = "FrontendSync"
-      actions = [
-        "s3:DeleteObject",
-        "s3:GetObject",
-        "s3:ListBucket",
-        "s3:PutObject",
-      ]
+      sid       = "FrontendSync"
+      actions   = ["s3:DeleteObject", "s3:GetObject", "s3:ListBucket", "s3:PutObject"]
       resources = concat(var.s3_bucket_arns, [for arn in var.s3_bucket_arns : "${arn}/*"])
     }
   }
@@ -129,15 +81,6 @@ data "aws_iam_policy_document" "deploy" {
       sid       = "CloudFrontInvalidate"
       actions   = ["cloudfront:CreateInvalidation"]
       resources = var.cloudfront_distribution_arns
-    }
-  }
-
-  dynamic "statement" {
-    for_each = length(var.cloudfront_distribution_arns) > 0 ? [1] : []
-    content {
-      sid       = "CloudFrontList"
-      actions   = ["cloudfront:ListDistributions"]
-      resources = ["*"] # list actions are account-wide; used to find the distribution id by comment
     }
   }
 }

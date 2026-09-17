@@ -1,10 +1,18 @@
-# FastAPI backend on ECS Fargate behind an internet-facing ALB, with its own
-# ECR repository, CloudWatch logs, IAM roles, and CPU-based autoscaling.
+# FastAPI backend: one ECS Fargate task behind an internet-facing ALB, with
+# its own ECR repository, CloudWatch logs, and IAM roles. The ALB speaks plain
+# HTTP; TLS is terminated by CloudFront in front of it (see static-site), so
+# by default the ALB only accepts traffic from CloudFront's IP ranges.
+
+data "aws_region" "current" {}
+
+data "aws_ec2_managed_prefix_list" "cloudfront" {
+  count = var.restrict_ingress_to_cloudfront ? 1 : 0
+
+  name = "com.amazonaws.global.cloudfront.origin-facing"
+}
 
 locals {
-  https_enabled = var.certificate_arn != ""
-  image         = "${aws_ecr_repository.this.repository_url}:${var.image_tag}"
-  url           = local.https_enabled ? "https://${aws_lb.this.dns_name}" : "http://${aws_lb.this.dns_name}"
+  image = "${aws_ecr_repository.this.repository_url}:${var.image_tag}"
 }
 
 # ---------------------------------------------------------------------------
@@ -24,15 +32,16 @@ resource "aws_ecr_repository" "this" {
 resource "aws_ecr_lifecycle_policy" "this" {
   repository = aws_ecr_repository.this.name
 
+  # stays under the 500 MB free tier for a ~150 MB image
   policy = jsonencode({
     rules = [
       {
         rulePriority = 1
-        description  = "Keep the last ${var.ecr_image_retention_count} images"
+        description  = "Keep the last 3 images"
         selection = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
-          countNumber = var.ecr_image_retention_count
+          countNumber = 3
         }
         action = { type = "expire" }
       }
@@ -64,7 +73,7 @@ data "aws_iam_policy_document" "ecs_tasks_assume" {
   }
 }
 
-# execution role: pulls the image, writes logs, reads secrets at task start
+# execution role: pulls the image, writes logs, reads parameters at task start
 resource "aws_iam_role" "execution" {
   name               = "${var.name}-ecs-execution"
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
@@ -75,49 +84,28 @@ resource "aws_iam_role_policy_attachment" "execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-data "aws_iam_policy_document" "execution_secrets" {
-  count = length(var.secret_arns) > 0 ? 1 : 0
+data "aws_iam_policy_document" "execution_parameters" {
+  count = length(var.parameter_arns) > 0 ? 1 : 0
 
+  # kms:Decrypt is not needed for SecureStrings encrypted with the default aws/ssm key
   statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = var.secret_arns
+    actions   = ["ssm:GetParameters"]
+    resources = var.parameter_arns
   }
 }
 
-resource "aws_iam_role_policy" "execution_secrets" {
-  count = length(var.secret_arns) > 0 ? 1 : 0
+resource "aws_iam_role_policy" "execution_parameters" {
+  count = length(var.parameter_arns) > 0 ? 1 : 0
 
-  name   = "read-secrets"
+  name   = "read-parameters"
   role   = aws_iam_role.execution.id
-  policy = data.aws_iam_policy_document.execution_secrets[0].json
+  policy = data.aws_iam_policy_document.execution_parameters[0].json
 }
 
-# task role: what the running application itself may call
+# task role: what the running application itself may call (attach policies from the env)
 resource "aws_iam_role" "task" {
   name               = "${var.name}-ecs-task"
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
-}
-
-data "aws_iam_policy_document" "task_exec_command" {
-  count = var.enable_execute_command ? 1 : 0
-
-  statement {
-    actions = [
-      "ssmmessages:CreateControlChannel",
-      "ssmmessages:CreateDataChannel",
-      "ssmmessages:OpenControlChannel",
-      "ssmmessages:OpenDataChannel",
-    ]
-    resources = ["*"]
-  }
-}
-
-resource "aws_iam_role_policy" "task_exec_command" {
-  count = var.enable_execute_command ? 1 : 0
-
-  name   = "ecs-exec"
-  role   = aws_iam_role.task.id
-  policy = data.aws_iam_policy_document.task_exec_command[0].json
 }
 
 # ---------------------------------------------------------------------------
@@ -126,28 +114,30 @@ resource "aws_iam_role_policy" "task_exec_command" {
 
 resource "aws_security_group" "alb" {
   name        = "${var.name}-alb"
-  description = "ALB ingress from the internet"
+  description = "ALB ingress"
   vpc_id      = var.vpc_id
 
   tags = { Name = "${var.name}-alb" }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "alb_http" {
+resource "aws_vpc_security_group_ingress_rule" "alb_http_cloudfront" {
+  count = var.restrict_ingress_to_cloudfront ? 1 : 0
+
   security_group_id = aws_security_group.alb.id
-  description       = "HTTP"
+  description       = "HTTP from CloudFront"
   from_port         = 80
   to_port           = 80
   ip_protocol       = "tcp"
-  cidr_ipv4         = "0.0.0.0/0"
+  prefix_list_id    = data.aws_ec2_managed_prefix_list.cloudfront[0].id
 }
 
-resource "aws_vpc_security_group_ingress_rule" "alb_https" {
-  count = local.https_enabled ? 1 : 0
+resource "aws_vpc_security_group_ingress_rule" "alb_http_any" {
+  count = var.restrict_ingress_to_cloudfront ? 0 : 1
 
   security_group_id = aws_security_group.alb.id
-  description       = "HTTPS"
-  from_port         = 443
-  to_port           = 443
+  description       = "HTTP from anywhere"
+  from_port         = 80
+  to_port           = 80
   ip_protocol       = "tcp"
   cidr_ipv4         = "0.0.0.0/0"
 }
@@ -178,7 +168,7 @@ resource "aws_vpc_security_group_ingress_rule" "tasks_from_alb" {
 
 resource "aws_vpc_security_group_egress_rule" "tasks_all" {
   security_group_id = aws_security_group.tasks.id
-  description       = "All outbound (ECR, Secrets Manager, Supabase, RDS)"
+  description       = "All outbound (ECR, SSM, Cognito, RDS)"
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
 }
@@ -192,7 +182,7 @@ resource "aws_lb" "this" {
   load_balancer_type = "application"
   internal           = false
   security_groups    = [aws_security_group.alb.id]
-  subnets            = var.alb_subnet_ids
+  subnets            = var.subnet_ids
 
   drop_invalid_header_fields = true
 }
@@ -222,37 +212,6 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
-  dynamic "default_action" {
-    for_each = local.https_enabled ? [] : [1]
-    content {
-      type             = "forward"
-      target_group_arn = aws_lb_target_group.this.arn
-    }
-  }
-
-  dynamic "default_action" {
-    for_each = local.https_enabled ? [1] : []
-    content {
-      type = "redirect"
-
-      redirect {
-        port        = "443"
-        protocol    = "HTTPS"
-        status_code = "HTTP_301"
-      }
-    }
-  }
-}
-
-resource "aws_lb_listener" "https" {
-  count = local.https_enabled ? 1 : 0
-
-  load_balancer_arn = aws_lb.this.arn
-  port              = 443
-  protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = var.certificate_arn
-
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.this.arn
@@ -268,7 +227,7 @@ resource "aws_ecs_cluster" "this" {
 
   setting {
     name  = "containerInsights"
-    value = var.enable_container_insights ? "enabled" : "disabled"
+    value = "disabled"
   }
 }
 
@@ -329,18 +288,14 @@ resource "aws_ecs_task_definition" "this" {
   ])
 }
 
-data "aws_region" "current" {}
-
-data "aws_caller_identity" "current" {}
-
 resource "aws_ecs_service" "this" {
   name            = var.name
   cluster         = aws_ecs_cluster.this.id
   task_definition = aws_ecs_task_definition.this.arn
-  desired_count   = var.min_count
+  desired_count   = var.desired_count
 
-  enable_execute_command            = var.enable_execute_command
-  health_check_grace_period_seconds = 60
+  # give the entrypoint time to run migrations before the first health check counts
+  health_check_grace_period_seconds = 120
 
   capacity_provider_strategy {
     capacity_provider = var.use_fargate_spot ? "FARGATE_SPOT" : "FARGATE"
@@ -353,9 +308,9 @@ resource "aws_ecs_service" "this" {
   }
 
   network_configuration {
-    subnets          = var.task_subnet_ids
+    subnets          = var.subnet_ids
     security_groups  = [aws_security_group.tasks.id]
-    assign_public_ip = var.assign_public_ip
+    assign_public_ip = true # outbound internet without a NAT gateway
   }
 
   load_balancer {
@@ -364,45 +319,9 @@ resource "aws_ecs_service" "this" {
     container_port   = var.container_port
   }
 
-  lifecycle {
-    # autoscaling owns the live count after creation
-    ignore_changes = [desired_count]
-  }
-
   depends_on = [
     aws_lb_listener.http,
-    aws_lb_listener.https,
     aws_iam_role_policy_attachment.execution,
-    aws_iam_role_policy.execution_secrets,
+    aws_iam_role_policy.execution_parameters,
   ]
-}
-
-# ---------------------------------------------------------------------------
-# autoscaling
-# ---------------------------------------------------------------------------
-
-resource "aws_appautoscaling_target" "this" {
-  service_namespace  = "ecs"
-  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.this.name}"
-  scalable_dimension = "ecs:service:DesiredCount"
-  min_capacity       = var.min_count
-  max_capacity       = var.max_count
-}
-
-resource "aws_appautoscaling_policy" "cpu" {
-  name               = "${var.name}-cpu"
-  policy_type        = "TargetTrackingScaling"
-  service_namespace  = aws_appautoscaling_target.this.service_namespace
-  resource_id        = aws_appautoscaling_target.this.resource_id
-  scalable_dimension = aws_appautoscaling_target.this.scalable_dimension
-
-  target_tracking_scaling_policy_configuration {
-    target_value       = var.cpu_target_percent
-    scale_in_cooldown  = 300
-    scale_out_cooldown = 60
-
-    predefined_metric_specification {
-      predefined_metric_type = "ECSServiceAverageCPUUtilization"
-    }
-  }
 }

@@ -1,11 +1,16 @@
-output "backend_url" {
-  description = "Public API base URL. Bake into the frontend as VITE_BACKEND_URL."
-  value       = module.backend.url
-}
-
 output "frontend_url" {
   description = "Public site URL."
   value       = module.frontend.url
+}
+
+output "backend_url" {
+  description = "Public API base URL (through CloudFront). Bake into the frontend as VITE_BACKEND_URL."
+  value       = module.frontend.api_url
+}
+
+output "alb_dns_name" {
+  description = "Raw ALB hostname; only reachable from CloudFront unless restrict_ingress_to_cloudfront is off."
+  value       = module.backend.alb_dns_name
 }
 
 output "ecr_repository_url" {
@@ -39,13 +44,13 @@ output "cloudfront_distribution_id" {
 }
 
 output "database_url" {
-  description = "Postgres URL for running migrations (sensitive)."
+  description = "Postgres URL (sensitive). Same value the task receives as DATABASE_URL."
   value       = module.database.connection_url
   sensitive   = true
 }
 
 output "cognito_user_pool_id" {
-  description = "Cognito user pool ID (COGNITO_USER_POOL_ID for local dev against prod auth)."
+  description = "Cognito user pool ID (COGNITO_USER_POOL_ID)."
   value       = module.auth.user_pool_id
 }
 
@@ -54,22 +59,7 @@ output "cognito_client_id" {
   value       = module.auth.client_id
 }
 
-output "backend_task_definition_family" {
-  description = "Task definition family for one-off runs (migrations)."
-  value       = "${local.name}-backend"
-}
-
-output "backend_task_subnet_ids" {
-  description = "Subnets for one-off aws ecs run-task invocations."
-  value       = module.backend.task_subnet_ids
-}
-
-output "backend_security_group_id" {
-  description = "Security group for one-off aws ecs run-task invocations."
-  value       = module.backend.security_group_id
-}
-
 output "github_deploy_role_arn" {
-  description = "Set as the AWS_DEPLOY_ROLE_ARN repository variable in GitHub."
+  description = "Set as the AWS_ROLE_ARN repository secret in GitHub."
   value       = local.github_repository != "" ? module.deploy_role[0].role_arn : ""
 }

@@ -1,6 +1,11 @@
 output "url" {
-  description = "Public URL of the site."
-  value       = local.url
+  description = "Public URL of the site (and, under api_path_prefix, the API)."
+  value       = "https://${aws_cloudfront_distribution.this.domain_name}"
+}
+
+output "api_url" {
+  description = "Public base URL of the API through CloudFront; empty if no API origin was given."
+  value       = local.api_enabled ? "https://${aws_cloudfront_distribution.this.domain_name}${var.api_path_prefix}" : ""
 }
 
 output "bucket_name" {
@@ -21,14 +26,4 @@ output "distribution_id" {
 output "distribution_arn" {
   description = "CloudFront distribution ARN."
   value       = aws_cloudfront_distribution.this.arn
-}
-
-output "distribution_domain_name" {
-  description = "*.cloudfront.net hostname (CNAME target for custom domains)."
-  value       = aws_cloudfront_distribution.this.domain_name
-}
-
-output "distribution_hosted_zone_id" {
-  description = "CloudFront hosted zone ID for Route 53 alias records."
-  value       = aws_cloudfront_distribution.this.hosted_zone_id
 }

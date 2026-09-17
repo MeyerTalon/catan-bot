@@ -1,8 +1,9 @@
-# Production environment. Composes the shared modules; environment-specific
-# sizing lives in the locals block so the diff between envs is obvious.
+# Production environment: composes the shared modules. Every sizing decision
+# lives in this locals block so the diff between environments is obvious.
 #
-# Idle cost with these defaults is roughly $30-45/month (ALB + db.t4g.micro +
-# one Fargate Spot task). Enabling NAT or multi-AZ roughly doubles it.
+# Idle cost with these values is about $44/month (ALB + 3 public IPv4s ≈ $27,
+# db.t4g.micro ≈ $14, one Fargate Spot task ≈ $3, everything else ≈ $0). See
+# ../../ARCHITECTURE.md for the per-resource breakdown.
 
 locals {
   project     = "catan"
@@ -12,12 +13,6 @@ locals {
 
   # set to "" to skip the GitHub Actions deploy role
   github_repository = "MeyerTalon/catan-bot"
-
-  # optional TLS. the ALB cert must be in local.aws_region; the CloudFront cert
-  # must be in us-east-1. leave empty for http / *.cloudfront.net only.
-  backend_certificate_arn  = ""
-  frontend_certificate_arn = ""
-  frontend_domain_names    = []
 }
 
 data "aws_caller_identity" "current" {}
@@ -29,10 +24,8 @@ data "aws_caller_identity" "current" {}
 module "network" {
   source = "../../modules/network"
 
-  name               = local.name
-  vpc_cidr           = "10.0.0.0/16"
-  az_count           = 2
-  enable_nat_gateway = false
+  name     = local.name
+  vpc_cidr = "10.0.0.0/16"
 }
 
 # ---------------------------------------------------------------------------
@@ -44,20 +37,18 @@ module "database" {
 
   name                       = local.name
   vpc_id                     = module.network.vpc_id
-  subnet_ids                 = module.network.private_subnet_ids
+  subnet_ids                 = module.network.public_subnet_ids
   allowed_security_group_ids = [module.backend.security_group_id]
 
   instance_class        = "db.t4g.micro"
   allocated_storage     = 20
-  max_allocated_storage = 100
-  multi_az              = false
   backup_retention_days = 7
   deletion_protection   = true
   skip_final_snapshot   = false
 }
 
 # ---------------------------------------------------------------------------
-# auth (cognito)
+# auth
 # ---------------------------------------------------------------------------
 
 module "auth" {
@@ -75,24 +66,21 @@ module "auth" {
 module "backend" {
   source = "../../modules/backend-service"
 
-  name             = "${local.name}-backend"
-  vpc_id           = module.network.vpc_id
-  alb_subnet_ids   = module.network.public_subnet_ids
-  task_subnet_ids  = module.network.public_subnet_ids
-  assign_public_ip = true
+  name       = "${local.name}-backend"
+  vpc_id     = module.network.vpc_id
+  subnet_ids = module.network.public_subnet_ids
 
   image_tag         = var.backend_image_tag
   container_port    = 8000
   health_check_path = "/health"
 
-  cpu                = 256
-  memory             = 512
-  min_count          = 1
-  max_count          = 2
-  cpu_target_percent = 70
-  use_fargate_spot   = true
+  cpu              = 256
+  memory           = 512
+  desired_count    = 1
+  use_fargate_spot = true
 
-  certificate_arn = local.backend_certificate_arn
+  # only cloudfront may talk to the alb; the api is reached at ${frontend_url}/api
+  restrict_ingress_to_cloudfront = true
 
   # pool/client ids are not secrets; only the db url is
   environment = {
@@ -104,9 +92,9 @@ module "backend" {
   }
 
   secrets = [
-    { name = "DATABASE_URL", value_from = "${module.database.secret_arn}:DATABASE_URL::" },
+    { name = "DATABASE_URL", value_from = module.database.database_url_parameter_arn },
   ]
-  secret_arns = [module.database.secret_arn]
+  parameter_arns = [module.database.database_url_parameter_arn]
 }
 
 # the backend confirms sign-ups itself, which is an admin call on the pool
@@ -117,21 +105,22 @@ resource "aws_iam_role_policy" "backend_cognito" {
 }
 
 # ---------------------------------------------------------------------------
-# frontend
+# frontend + api edge
 # ---------------------------------------------------------------------------
 
 module "frontend" {
   source = "../../modules/static-site"
 
-  name            = "${local.name}-frontend"
-  bucket_name     = "${local.name}-frontend-${data.aws_caller_identity.current.account_id}"
-  force_destroy   = false
-  domain_names    = local.frontend_domain_names
-  certificate_arn = local.frontend_certificate_arn
+  name          = "${local.name}-frontend"
+  bucket_name   = "${local.name}-frontend-${data.aws_caller_identity.current.account_id}"
+  force_destroy = false
+
+  api_origin_domain_name = module.backend.alb_dns_name
+  api_path_prefix        = "/api"
 }
 
 # ---------------------------------------------------------------------------
-# github actions deploy role (app deploys only; terraform CI roles are in bootstrap)
+# github actions deploy role (app deploys only; the terraform role is in bootstrap)
 # ---------------------------------------------------------------------------
 
 data "aws_iam_openid_connect_provider" "github" {
@@ -151,8 +140,6 @@ module "deploy_role" {
 
   ecr_repository_arns          = [module.backend.ecr_repository_arn]
   ecs_service_arns             = [module.backend.service_arn]
-  ecs_task_definition_arns     = [module.backend.task_definition_family_arn]
-  ecs_task_role_arns           = [module.backend.task_execution_role_arn, module.backend.task_role_arn]
   s3_bucket_arns               = [module.frontend.bucket_arn]
   cloudfront_distribution_arns = [module.frontend.distribution_arn]
 }

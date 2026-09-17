@@ -25,7 +25,7 @@ usage: ./setup.sh
 one-time local bootstrap for vscode / cursor:
 
   - install mise if missing, then the tools in mise.toml
-  - sync backend and bot uv environments from lockfiles
+  - sync the shared uv workspace env (.venv at the repo root: bot + backend)
   - install frontend pnpm dependencies from the lockfile
   - copy .env examples when local env files are absent
   - write workspace settings and recommend / install editor extensions
@@ -99,28 +99,28 @@ EOF
   if [[ ! -f "${dir}/settings.json" ]]; then
     cat >"${dir}/settings.json" <<'EOF'
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
   "python.terminal.activateEnvironment": true,
-  "python.analysis.extraPaths": ["${workspaceFolder}/backend"],
   "ruff.nativeServer": "on",
   "ruff.configuration": "${workspaceFolder}/backend/pyproject.toml",
-  "ruff.interpreter": ["${workspaceFolder}/backend/.venv/bin/python"],
+  "ruff.interpreter": ["${workspaceFolder}/.venv/bin/python"],
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnSave": true
   },
   "eslint.workingDirectories": [{ "mode": "auto" }],
-  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "js/ts.tsdk.path": "frontend/node_modules/typescript/lib",
   "terminal.integrated.env.osx": {
-    "PATH": "${env:HOME}/.local/share/mise/shims:${env:HOME}/.local/bin:${env:PATH}"
+    "VIRTUAL_ENV": "${workspaceFolder}/.venv",
+    "PATH": "${workspaceFolder}/.venv/bin:${env:HOME}/.local/share/mise/shims:${env:HOME}/.local/bin:${env:PATH}"
   },
   "terminal.integrated.env.linux": {
-    "PATH": "${env:HOME}/.local/share/mise/shims:${env:HOME}/.local/bin:${env:PATH}"
+    "VIRTUAL_ENV": "${workspaceFolder}/.venv",
+    "PATH": "${workspaceFolder}/.venv/bin:${env:HOME}/.local/share/mise/shims:${env:HOME}/.local/bin:${env:PATH}"
   },
   "mise.configureExtensionsAutomatically": true,
   "mise.configureExtensionsIncludeGlobalTools": false,
   "mise.configureExtensionsAutomaticallyIncludeList": [
-    "ms-python.python",
     "charliermarsh.ruff"
   ]
 }
@@ -198,7 +198,7 @@ cat <<EOF
 
 next:
   1. edit backend/.env (DATABASE_URL, COGNITO_*)
-  2. python interpreter: backend/.venv/bin/python  (status bar, or "Python: Select Interpreter")
+  2. python interpreter: .venv/bin/python  (status bar, or "Python: Select Interpreter")
   3. mise run be:dev
   4. mise run fe:dev
 

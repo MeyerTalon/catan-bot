@@ -9,12 +9,12 @@ variable "vpc_id" {
 }
 
 variable "subnet_ids" {
-  description = "Private subnet IDs for the DB subnet group (at least two AZs)."
+  description = "Subnet IDs for the DB subnet group (at least two AZs). The instance is never publicly accessible."
   type        = list(string)
 }
 
 variable "allowed_security_group_ids" {
-  description = "Security groups allowed to reach Postgres on 5432 (e.g. the backend service SG)."
+  description = "Security groups allowed to reach Postgres on 5432 (e.g. the backend task SG)."
   type        = list(string)
   default     = []
 }
@@ -26,21 +26,15 @@ variable "engine_version" {
 }
 
 variable "instance_class" {
-  description = "RDS instance class."
+  description = "RDS instance class. db.t4g.micro is the cheapest (~$12/month)."
   type        = string
   default     = "db.t4g.micro"
 }
 
 variable "allocated_storage" {
-  description = "Initial storage in GiB (gp3)."
+  description = "Storage in GiB (gp3, ~$0.115/GiB/month). Backups are free up to this size."
   type        = number
   default     = 20
-}
-
-variable "max_allocated_storage" {
-  description = "Upper bound for storage autoscaling in GiB. Set equal to allocated_storage to disable."
-  type        = number
-  default     = 100
 }
 
 variable "db_name" {
@@ -50,15 +44,9 @@ variable "db_name" {
 }
 
 variable "username" {
-  description = "Master username. The password is generated and stored in Secrets Manager."
+  description = "Master username. The password is generated and stored in SSM Parameter Store."
   type        = string
   default     = "catan"
-}
-
-variable "multi_az" {
-  description = "Run a standby in a second AZ. Roughly doubles the instance cost."
-  type        = bool
-  default     = false
 }
 
 variable "backup_retention_days" {
@@ -75,12 +63,6 @@ variable "deletion_protection" {
 
 variable "skip_final_snapshot" {
   description = "Skip the final snapshot on destroy. Keep false for anything holding real data."
-  type        = bool
-  default     = false
-}
-
-variable "apply_immediately" {
-  description = "Apply modifications immediately instead of in the next maintenance window."
   type        = bool
   default     = false
 }

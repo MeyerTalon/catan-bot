@@ -21,3 +21,10 @@ catan-bot = "catan_bot.cli:app"
 
 [tool.setuptools]
 packages = ["catan_bot"]
+
+# one lockfile and one .venv for the bot (this package) and the backend
+[tool.uv.workspace]
+members = ["backend"]
+
+[tool.uv]
+package = true

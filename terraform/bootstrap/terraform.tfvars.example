@@ -1,6 +1,10 @@
 project_name = "catan"
 aws_region   = "us-west-2"
 
-# GitHub repository allowed to run Terraform from Actions. Leave commented to
-# skip the OIDC provider and CI roles entirely.
+# GitHub repository allowed to run terraform apply from Actions (main branch only).
+# Leave commented to skip the OIDC provider and role.
 github_repository = "MeyerTalon/catan-bot"
+
+# Monthly cost alert. Leave commented to skip the budget.
+budget_alert_email = "you@example.com"
+budget_limit_usd   = 10

@@ -1,0 +1,25 @@
+# Build context is the repo root (see backend/Dockerfile); only backend/ and
+# db/ end up in the image. Keep everything heavy or secret out of the context.
+.git
+.github
+.agents
+.claude
+.cursor
+frontend
+terraform
+catan_bot
+supabase
+*.md
+**/__pycache__
+**/*.py[cod]
+**/.venv
+**/.env
+**/.env.*
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/node_modules
+backend/tests
+backend/scripts
+backend/Dockerfile
+backend/docker-compose*.yml

@@ -37,36 +37,6 @@ jobs:
       - name: Lint
         run: mise run tf:lint
 
-  # read-only plan on pull requests; skipped until the plan role variable is set
-  plan:
-    if: github.event_name == 'pull_request' && vars.AWS_TERRAFORM_PLAN_ROLE_ARN != ''
-    needs: check
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        env: [prod]
-    defaults:
-      run:
-        working-directory: terraform/envs/${{ matrix.env }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-      - name: Init
-        run: terraform init -backend-config=backend.hcl
-      - name: Plan
-        run: |
-          terraform plan -lock=false -no-color -out=tfplan | tee plan.txt
-          {
-            echo "## terraform plan (${{ matrix.env }})"
-            echo '```'
-            tail -n 200 plan.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
   # apply on main; skipped until the apply role variable is set. add a
   # "production" environment with required reviewers in github settings to gate it.
   apply:

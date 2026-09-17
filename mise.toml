@@ -12,25 +12,25 @@ tflint = "0.59"
 [settings]
 lockfile = true
 
+# activate the uv workspace venv in shells that use `mise activate`
+[env]
+_.python.venv = ".venv"
+
 # --- install ---
 
 [tasks.install]
 description = "Install backend, frontend, and bot dependencies"
-depends = ["be:sync", "fe:install", "bot:sync"]
+depends = ["sync", "fe:install"]
 
-[tasks."be:sync"]
-description = "Sync backend uv env from the lockfile"
-dir = "backend"
-run = "uv sync --frozen --all-groups"
+# one uv workspace (root pyproject.toml + backend member): one uv.lock, one .venv
+[tasks.sync]
+description = "Sync the shared uv env (bot + backend, all groups) from the lockfile"
+run = "uv sync --frozen --all-packages --all-groups"
 
 [tasks."fe:install"]
 description = "Install frontend deps from the pnpm lockfile"
 dir = "frontend"
 run = "pnpm install --frozen-lockfile"
-
-[tasks."bot:sync"]
-description = "Sync catan_bot uv env from the lockfile"
-run = "uv sync --frozen"
 
 # --- backend ---
 

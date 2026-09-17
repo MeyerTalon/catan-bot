@@ -13,11 +13,6 @@ output "github_oidc_provider_arn" {
   value       = local.github_enabled ? aws_iam_openid_connect_provider.github[0].arn : ""
 }
 
-output "terraform_plan_role_arn" {
-  description = "Set as the AWS_TERRAFORM_PLAN_ROLE_ARN repository variable in GitHub."
-  value       = local.github_enabled ? aws_iam_role.terraform_plan[0].arn : ""
-}
-
 output "terraform_apply_role_arn" {
   description = "Set as the AWS_TERRAFORM_APPLY_ROLE_ARN repository variable in GitHub."
   value       = local.github_enabled ? aws_iam_role.terraform_apply[0].arn : ""

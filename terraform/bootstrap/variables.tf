@@ -11,7 +11,7 @@ variable "aws_region" {
 }
 
 variable "github_repository" {
-  description = "GitHub repository (owner/name) whose Actions may run Terraform. Empty skips the OIDC provider and CI roles."
+  description = "GitHub repository (owner/name) whose Actions may run terraform apply. Empty skips the OIDC provider and role."
   type        = string
   default     = ""
 }
@@ -20,4 +20,16 @@ variable "terraform_apply_branch" {
   description = "Branch allowed to assume the apply role."
   type        = string
   default     = "main"
+}
+
+variable "budget_alert_email" {
+  description = "Email for the monthly cost alert. Empty skips the budget."
+  type        = string
+  default     = ""
+}
+
+variable "budget_limit_usd" {
+  description = "Monthly spend that triggers the alert (actual and forecasted)."
+  type        = number
+  default     = 10
 }

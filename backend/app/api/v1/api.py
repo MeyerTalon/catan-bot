@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, auth, games, health, users
+from app.api.v1.endpoints import auth, games, health, users
 
 api_router = APIRouter()
 
@@ -12,4 +12,3 @@ api_router.include_router(users.router, prefix='/users', tags=['users'])
 api_router.include_router(
     games.router, prefix='/users', tags=['sessions']
 )  # /users/{user_id}/sessions
-api_router.include_router(admin.router, prefix='/admin', tags=['admin'])
