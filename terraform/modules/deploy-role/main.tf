@@ -1,6 +1,8 @@
 # Least-privilege IAM role that GitHub Actions assumes via OIDC to ship the
 # application: push an image, roll the ECS service, sync the frontend. It has
 # no rights to change infrastructure; Terraform CI uses the role from bootstrap.
+# Trust is per GitHub *environment*, not branch: a job that declares
+# `environment: production` presents sub = repo:<repo>:environment:production.
 
 data "aws_iam_policy_document" "assume" {
   statement {
@@ -20,7 +22,7 @@ data "aws_iam_policy_document" "assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [for ref in var.github_refs : "repo:${var.github_repository}:ref:${ref}"]
+      values   = [for env in var.github_environments : "repo:${var.github_repository}:environment:${env}"]
     }
   }
 }

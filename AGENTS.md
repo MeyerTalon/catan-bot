@@ -5,6 +5,7 @@ Full-stack Catan app plus an LLM move-selection bot. Top-level pieces:
 - `backend/` — FastAPI + SQLAlchemy + Pydantic API (`app` package) against Postgres (RDS on AWS, local Postgres in dev). Auth is proxied to Amazon Cognito (`boto3`); Cognito-JWT-protected user and session routes live here. Dockerized (`backend/Dockerfile`) for local runs and AWS ECS Fargate.
 - `frontend/` — React (Vite + TypeScript) UI; talks to the backend through the generated OpenAPI client in `frontend/src/api/`. Deployed to S3 + CloudFront.
 - `db/` — Alembic migrations; source of truth for the Postgres schema (`db/README.md`).
+- `docs/` + `mkdocs.yml` — MkDocs site for GitHub Pages. Pages are `include-markdown` wrappers around the READMEs, `terraform/ARCHITECTURE.md`, and this file, plus a Redoc page over `frontend/src/api/openapi.json`; edit the source files, not `docs/`. `mise run docs:serve` to preview, `docs:build` (strict) runs in CI
 - `terraform/` — AWS IaC: `bootstrap/` (one-time per account: state bucket, GitHub OIDC, terraform-apply role, budget), `modules/` (network, database, auth, backend-service, static-site, deploy-role), `envs/<env>/` (composes modules; remote S3 state). Diagram + cost: `terraform/ARCHITECTURE.md`; runbook: `terraform/README.md`.
 - `catan_bot/` — CLI bot that sends a structured `GameState` to `gpt-oss` via Ollama and prints a `ModelMoveResponse`.
 - `mise.toml` — pinned tool versions and `mise run` tasks. Commit `mise.lock`.
@@ -38,7 +39,8 @@ mise run be:docker               # docker compose up --build
 
 # frontend
 mise run fe:dev                  # Vite; opens Google Chrome via BROWSER env
-mise run fe:lint
+mise run fe:check                # oxfmt --check, oxlint (warnings fail), tsc --noEmit
+mise run fe:format               # write oxfmt formatting
 mise run fe:build
 mise run api                     # export OpenAPI + regenerate TS types
 
@@ -64,9 +66,9 @@ Backend listens at `http://localhost:8000` (docs: `http://localhost:8000/docs`).
 
 ## Git workflow
 
-- Never push directly to `main`. Every push to `main` runs `.github/workflows/ci-cd.yml`, which applies Alembic migrations to the production database, pushes the backend image to ECR and rolls the ECS service, and syncs the frontend build to S3/CloudFront
+- Never push directly to `main`; work on a feature branch and open a PR. Nothing deploys on push: `ci.yml` (checks only) runs on PRs and on `main`; deploys and Terraform applies are manually dispatched workflows gated by the `production` GitHub environment
 - Work on a feature branch (e.g. `talon/<topic>`), open a PR into `main`, and let CI run there. This applies to the `push` skill too: it pushes the current branch, so make sure you are not on `main`
-- `ci-cd.yml` triggers on `backend/`, `frontend/`, `db/`, `mise.toml`, `mise.lock`, and `.github/workflows/`; `terraform.yml` triggers on `terraform/`, `mise.toml`, and `mise.lock` (fmt/validate/lint on every PR; apply on `main` once the `AWS_TERRAFORM_APPLY_ROLE_ARN` repo variable exists — so a merged Terraform change can also change production infrastructure). `catan_bot/` and docs get no CI — verify locally
+- Workflows: `ci.yml` (be:check, api drift, fe:check + build, docs build, tf:check + lint), `docs.yml` (MkDocs → GitHub Pages; the only auto-deploy, runs on `main` when docs/READMEs/OpenAPI change), `deploy-backend.yml`, `deploy-frontend.yml`, `deploy.yml` (both), `terraform.yml` (plan → approval → apply). Never add a push/PR trigger to anything that touches AWS; never dispatch a deploy or Terraform workflow yourself — that is the user's action in the GitHub UI. `catan_bot/` has no tests in CI — verify locally
 
 ## Layout & conventions
 
@@ -81,7 +83,7 @@ Backend listens at `http://localhost:8000` (docs: `http://localhost:8000/docs`).
 
 ## Verification
 
-CI (`.github/workflows/ci-cd.yml`) on `main` installs tools with mise, then runs `mise run be:check`, `mise run api` (OpenAPI drift), and `mise run fe:build`, applies Alembic migrations, and deploys backend (ECS) / frontend (S3 + CloudFront). Locally, run `mise run be:check` and `mise run fe:lint` / `mise run fe:build` for the area you touched; for Terraform run `mise run tf:check` (and `ENV=<env> mise run tf:plan` if credentials are available). Add lightweight `pytest` tests under `backend/tests/` for critical Python (see the `python-coding` skill). For UI/layout/routing/client-state changes, exercise the flow in the browser (auth, game screen, and any shared state), not just a screenshot.
+CI (`.github/workflows/ci.yml`, on PRs and `main`) installs tools with mise, then runs `mise run be:check`, `mise run api` (OpenAPI drift), `mise run fe:check` + `fe:build`, `mise run docs:build`, and `mise run tf:check` + `tf:lint`. Locally, run `mise run be:check` / `mise run fe:check` / `mise run docs:build` for the area you touched (`mise run check` does all three); for Terraform run `mise run tf:check` (and `ENV=<env> mise run tf:plan` if credentials are available). Add lightweight `pytest` tests under `backend/tests/` for critical Python (see the `python-coding` skill). For UI/layout/routing/client-state changes, exercise the flow in the browser (auth, game screen, and any shared state), not just a screenshot.
 
 ## Do not
 

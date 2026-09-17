@@ -13,10 +13,10 @@ variable "github_repository" {
   type        = string
 }
 
-variable "github_refs" {
-  description = "Git refs allowed to assume the role, e.g. refs/heads/main. Pull requests are never allowed."
+variable "github_environments" {
+  description = "GitHub environment names whose jobs may assume the role (the OIDC sub claim is repo:<owner/name>:environment:<name>). Restrict branches and require reviewers on the environment itself in GitHub."
   type        = list(string)
-  default     = ["refs/heads/main"]
+  default     = ["production"]
 }
 
 variable "ecr_repository_arns" {

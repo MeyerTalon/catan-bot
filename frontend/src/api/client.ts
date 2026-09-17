@@ -27,7 +27,10 @@ api.use({
   },
 });
 
-export function apiErrorMessage(error: unknown, fallback = "Request failed"): string {
+export function apiErrorMessage(
+  error: unknown,
+  fallback = "Request failed",
+): string {
   if (error && typeof error === "object" && "detail" in error) {
     const detail = (error as { detail: unknown }).detail;
     if (typeof detail === "string") return detail;
@@ -36,7 +39,7 @@ export function apiErrorMessage(error: unknown, fallback = "Request failed"): st
         .map((item) =>
           item && typeof item === "object" && "msg" in item
             ? String((item as { msg: unknown }).msg)
-            : String(item)
+            : String(item),
         )
         .join(", ");
     }

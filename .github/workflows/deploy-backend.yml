@@ -1,0 +1,70 @@
+# Build the backend image, push it to ECR, and roll the ECS service.
+# Manual only. Also callable from deploy.yml.
+#
+# The job runs in the GitHub environment named by `environment` (default
+# "production"): its protection rules (allowed branches, required reviewers)
+# gate the deploy, and the AWS role trusts that environment via OIDC.
+# Migrations run inside the container on start; the runner never touches RDS.
+#
+# Environment variables (Settings → Environments → production → Variables):
+#   AWS_REGION, AWS_DEPLOY_ROLE_ARN, ECR_REPOSITORY, ECS_CLUSTER, ECS_SERVICE
+name: Deploy backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub environment to deploy through
+        type: environment
+        default: production
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        default: production
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-backend-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push image
+        env:
+          REPO: ${{ vars.ECR_REPOSITORY }}
+        run: |
+          docker build --platform linux/amd64 -f backend/Dockerfile \
+            -t "$REPO:${GITHUB_SHA}" -t "$REPO:latest" .
+          docker push "$REPO:${GITHUB_SHA}"
+          docker push "$REPO:latest"
+      - name: Roll the service
+        run: |
+          aws ecs update-service \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --service "${{ vars.ECS_SERVICE }}" \
+            --force-new-deployment >/dev/null
+      - name: Wait for the new task to be healthy
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --services "${{ vars.ECS_SERVICE }}"
+      - name: Summary
+        run: |
+          {
+            echo "## Backend deployed"
+            echo "- image: \`${{ vars.ECR_REPOSITORY }}:${GITHUB_SHA}\`"
+            echo "- service: \`${{ vars.ECS_CLUSTER }}/${{ vars.ECS_SERVICE }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

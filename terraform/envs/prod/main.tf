@@ -133,10 +133,10 @@ module "deploy_role" {
   count  = local.github_repository != "" ? 1 : 0
   source = "../../modules/deploy-role"
 
-  name              = "${local.name}-github-deploy"
-  oidc_provider_arn = data.aws_iam_openid_connect_provider.github[0].arn
-  github_repository = local.github_repository
-  github_refs       = ["refs/heads/main"]
+  name                = "${local.name}-github-deploy"
+  oidc_provider_arn   = data.aws_iam_openid_connect_provider.github[0].arn
+  github_repository   = local.github_repository
+  github_environments = ["production"]
 
   ecr_repository_arns          = [module.backend.ecr_repository_arn]
   ecs_service_arns             = [module.backend.service_arn]

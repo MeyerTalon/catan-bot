@@ -11,7 +11,7 @@ Wire types are generated from the backend OpenAPI schema. Do not hand-edit `src/
 - **Vite** 5
 - **pnpm** – package manager (`pnpm-lock.yaml`)
 - **openapi-fetch** + **openapi-typescript** – typed client from FastAPI `/openapi.json`
-- **ESLint**
+- **oxlint** + **oxfmt** – linting and formatting (`.oxlintrc.json`, `.oxfmtrc.json`; 80 cols, prettier-compatible style)
 
 ## Structure
 
@@ -39,7 +39,10 @@ Prefer `mise run fe:*` from the repo root. Direct pnpm equivalents from `fronten
 | `mise run fe:dev` / `pnpm run dev` | Vite dev server (http://localhost:5173). |
 | `mise run fe:build` / `pnpm run build` | Production build → `dist/`. |
 | `mise run fe:preview` / `pnpm run preview` | Serve `dist/` locally. |
-| `mise run fe:lint` / `pnpm run lint` | ESLint on `src`. |
+| `mise run fe:lint` / `pnpm run lint` | oxlint on `src`; warnings fail (`pnpm run lint:fix` autofixes). |
+| `mise run fe:format` / `pnpm run format` | oxfmt in place (`fe:format-check` / `format:check` to verify). |
+| `mise run fe:typecheck` / `pnpm run typecheck` | `tsc --noEmit`. |
+| `mise run fe:check` | format-check + lint + typecheck (what CI runs). |
 | `mise run api` / `pnpm run generate:api` | Export OpenAPI (backend) and regenerate `src/api/schema.d.ts`. |
 
 After backend schema changes:

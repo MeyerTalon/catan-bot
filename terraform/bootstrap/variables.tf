@@ -16,10 +16,10 @@ variable "github_repository" {
   default     = ""
 }
 
-variable "terraform_apply_branch" {
-  description = "Branch allowed to assume the apply role."
-  type        = string
-  default     = "main"
+variable "github_environments" {
+  description = "GitHub environments whose jobs may assume the terraform-apply role. terraform.yml plans in production-plan and applies in production; restrict both to main and put reviewers on production in GitHub."
+  type        = list(string)
+  default     = ["production", "production-plan"]
 }
 
 variable "budget_alert_email" {

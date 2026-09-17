@@ -1,0 +1,70 @@
+# Checks only — no AWS access, no deploys. Runs on every pull request and on
+# every change to main. Deploys are separate, manually dispatched workflows.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - run: mise run sync
+      - name: Compile, ruff, mypy, pytest
+        run: mise run be:check
+
+  api-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - run: mise run sync
+      - run: mise run fe:install
+      - name: Export OpenAPI and regenerate types
+        run: mise run api
+      - name: Fail if generated API artifacts are stale
+        run: git diff --exit-code -- frontend/src/api/openapi.json frontend/src/api/schema.d.ts
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - run: mise run fe:install
+      - name: oxfmt, oxlint, tsc
+        run: mise run fe:check
+      - name: Build
+        env:
+          VITE_BACKEND_URL: http://localhost:8000 # any value; the real one is baked in at deploy time
+        run: mise run fe:build
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - run: mise run sync
+      - name: Strict mkdocs build
+        run: mise run docs:build
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - name: fmt -check + validate
+        run: mise run tf:check
+      - name: tflint
+        run: mise run tf:lint

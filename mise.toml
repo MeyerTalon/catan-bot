@@ -96,9 +96,24 @@ dir = "frontend"
 run = "pnpm run dev"
 
 [tasks."fe:lint"]
-description = "Lint frontend TypeScript"
+description = "Lint frontend TypeScript with oxlint (warnings fail)"
 dir = "frontend"
 run = "pnpm run lint"
+
+[tasks."fe:format"]
+description = "Format frontend files with oxfmt"
+dir = "frontend"
+run = "pnpm run format"
+
+[tasks."fe:format-check"]
+description = "Check frontend formatting with oxfmt"
+dir = "frontend"
+run = "pnpm run format:check"
+
+[tasks."fe:typecheck"]
+description = "Type-check frontend TypeScript (tsc --noEmit)"
+dir = "frontend"
+run = "pnpm run typecheck"
 
 [tasks."fe:build"]
 description = "Build the frontend for production"
@@ -122,14 +137,24 @@ dir = "frontend"
 run = "pnpm run generate:api"
 
 [tasks."fe:check"]
-description = "Lint the frontend"
-depends = ["fe:lint"]
+description = "oxfmt --check, oxlint, and tsc"
+depends = ["fe:format-check", "fe:lint", "fe:typecheck"]
 
 # --- bot ---
 
 [tasks."bot:choose-move"]
 description = "Run the catan_bot CLI against the sample game state"
 run = "uv run catan-bot choose-move"
+
+# --- docs (mkdocs, published to github pages by docs.yml) ---
+
+[tasks."docs:serve"]
+description = "Preview the docs site at http://127.0.0.1:8001"
+run = "uv run mkdocs serve -a 127.0.0.1:8001"
+
+[tasks."docs:build"]
+description = "Strict mkdocs build into site/"
+run = "uv run mkdocs build"
 
 # --- terraform (Makefile remains the implementation) ---
 
@@ -161,5 +186,5 @@ run = "make bootstrap-apply"
 # --- meta ---
 
 [tasks.check]
-description = "Backend quality checks (compile, ruff, mypy, pytest)"
-depends = ["be:check"]
+description = "All quality checks: backend (compile, ruff, mypy, pytest), frontend (oxfmt, oxlint, tsc), docs build"
+depends = ["be:check", "fe:check", "docs:build"]

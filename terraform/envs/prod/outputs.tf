@@ -60,6 +60,6 @@ output "cognito_client_id" {
 }
 
 output "github_deploy_role_arn" {
-  description = "Set as the AWS_ROLE_ARN repository secret in GitHub."
+  description = "Set as the AWS_DEPLOY_ROLE_ARN variable on the production GitHub environment."
   value       = local.github_repository != "" ? module.deploy_role[0].role_arn : ""
 }

@@ -14,6 +14,6 @@ output "github_oidc_provider_arn" {
 }
 
 output "terraform_apply_role_arn" {
-  description = "Set as the AWS_TERRAFORM_APPLY_ROLE_ARN repository variable in GitHub."
+  description = "Set as the AWS_TERRAFORM_APPLY_ROLE_ARN variable on the production and production-plan GitHub environments."
   value       = local.github_enabled ? aws_iam_role.terraform_apply[0].arn : ""
 }

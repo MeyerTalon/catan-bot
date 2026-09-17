@@ -1,0 +1,78 @@
+# Documentation site published to GitHub Pages by .github/workflows/docs.yml.
+# Pages are thin wrappers that include the README/ARCHITECTURE files that
+# already live next to the code, so docs never fork from the source of truth.
+#   mise run docs:serve   # live preview at http://127.0.0.1:8001
+#   mise run docs:build   # strict build into site/
+site_name: catan-bot
+site_description: Full-stack Catan app with an LLM move-selection bot
+repo_url: https://github.com/MeyerTalon/catan-bot
+repo_name: MeyerTalon/catan-bot
+edit_uri: ""
+docs_dir: docs
+site_dir: site
+strict: true
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Overview: index.md
+  - Backend: backend.md
+  - Frontend: frontend.md
+  - Database: database.md
+  - Infrastructure:
+      - Architecture & cost: architecture.md
+      - Terraform runbook: infrastructure.md
+  - API reference: api.md
+  - Agent instructions: agents.md
+
+plugins:
+  - search
+  - include-markdown:
+      rewrite_relative_urls: true
+
+hooks:
+  - docs/hooks.py
+
+exclude_docs: |
+  hooks.py
+  __pycache__/
+
+extra_css:
+  - stylesheets/redoc.css
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+
+# included READMEs link to source files that are not part of the site; that
+# is expected, so do not let those links fail the strict build
+validation:
+  links:
+    not_found: info
+    absolute_links: info
+    unrecognized_links: info

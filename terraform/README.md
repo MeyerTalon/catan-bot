@@ -104,30 +104,39 @@ Open `$($OUT frontend_url)`.
 
 ### 6. Wire up GitHub Actions
 
-Every role is assumed via OIDC from this repository's `main` branch only; no AWS keys go in GitHub.
+Nothing deploys on push. `ci.yml` (checks only, no AWS) runs on pull requests and on `main`; everything that touches AWS is a manually dispatched workflow that runs inside a GitHub **environment**, and the IAM roles trust those environments via OIDC (`sub = repo:<owner/repo>:environment:<name>`). No AWS keys go in GitHub.
 
-**`.github/workflows/terraform.yml`** — fmt/validate/lint on every PR; `terraform apply` on `main` once this **repository variable** is set:
+Create two environments (Settings → Environments):
+
+| Environment | Deployment branches | Required reviewers | Used by |
+|---|---|---|---|
+| `production` | `main` only | yes (you) | `deploy-backend.yml`, `deploy-frontend.yml`, `deploy.yml`, the **apply** job of `terraform.yml` |
+| `production-plan` | `main` only | no | the **plan** job of `terraform.yml` (so the plan runs without approval and you approve the apply after reading it) |
+
+Then set these **environment variables** (none are secret) on `production`; the two `AWS_*` ones also on `production-plan`:
 
 | Variable | Value from |
 |---|---|
-| `AWS_TERRAFORM_APPLY_ROLE_ARN` | `bootstrap` output `terraform_apply_role_arn` |
-
-Add a `production` GitHub environment with required reviewers to gate the apply job.
-
-**`.github/workflows/ci-cd.yml`** — app deploy on `main`; reads these **repository secrets**:
-
-| Secret | Value from `envs/prod` output |
-|---|---|
-| `AWS_ROLE_ARN` | `github_deploy_role_arn` |
 | `AWS_REGION` | `us-west-2` |
+| `AWS_TERRAFORM_APPLY_ROLE_ARN` | `bootstrap` output `terraform_apply_role_arn` (both environments) |
+| `AWS_DEPLOY_ROLE_ARN` | `envs/prod` output `github_deploy_role_arn` |
 | `ECR_REPOSITORY` | `ecr_repository_url` |
 | `ECS_CLUSTER` | `ecs_cluster_name` |
 | `ECS_SERVICE` | `ecs_service_name` |
 | `FRONTEND_BUCKET` | `frontend_bucket` |
 | `CLOUDFRONT_DISTRIBUTION_ID` | `cloudfront_distribution_id` |
-| `VITE_BACKEND_URL` | `backend_url` |
+| `VITE_BACKEND_URL` | `backend_url` (`https://<cloudfront>/api`) |
 
-The deploy role can push images, roll the service, and sync the frontend — nothing else. `ci-cd.yml` runs no migrations; the container does that on start.
+Workflows (Actions tab → Run workflow):
+
+| Workflow | What it does |
+|---|---|
+| **Terraform** | `plan` (default) or `plan-and-apply` for `terraform/envs/<env>`. The plan lands in the job summary; the apply job waits for your approval on `production` and applies exactly that plan file. |
+| **Deploy backend** | builds the image, pushes `:sha` + `:latest`, rolls the ECS service, waits until stable. Migrations run in the container. |
+| **Deploy frontend** | builds with `VITE_BACKEND_URL`, syncs S3, invalidates CloudFront. |
+| **Deploy all** | backend, then frontend. |
+
+The deploy role can push images, roll the service, and sync the frontend — nothing else; the apply role is admin but only usable from those two environments.
 
 ## Day-to-day
 
@@ -140,7 +149,7 @@ make apply ENV=prod        # applies that plan
 make output ENV=prod ARGS="-raw backend_url"
 ```
 
-Deploy new backend code without Terraform: push `:latest` and `aws ecs update-service --cluster … --service … --force-new-deployment` (what `ci-cd.yml` does). For pinned deploys push an immutable tag too and `make plan ENV=prod ARGS="-var backend_image_tag=<git sha>"`.
+Deploy new backend code without Terraform: run the **Deploy backend** workflow (or by hand: push `:latest` and `aws ecs update-service --cluster … --service … --force-new-deployment`). For pinned deploys push an immutable tag too and `make plan ENV=prod ARGS="-var backend_image_tag=<git sha>"`.
 
 Pause the database when idle: `aws rds stop-db-instance --db-instance-identifier catan-prod-postgres` (AWS restarts it after 7 days; the task will fail health checks until it is back).
 
@@ -148,7 +157,7 @@ Pause the database when idle: `aws rds stop-db-instance --db-instance-identifier
 
 1. `cp -r envs/prod envs/staging`; in `main.tf` set `environment = "staging"`, `deletion_protection = false`, `skip_final_snapshot = true`, `force_destroy = true`.
 2. In `envs/staging/backend.hcl` set `key = "envs/staging/terraform.tfstate"`.
-3. `make init ENV=staging && make plan ENV=staging`; add `staging` to the matrix in `.github/workflows/terraform.yml`.
+3. `make init ENV=staging && make plan ENV=staging`. The Terraform workflow takes the env name as an input, so nothing in CI changes; for separate approval rules, add a `staging` GitHub environment and a `github_environments` entry on the roles.
 
 Each environment is its own VPC and state file; only the bootstrap bucket and OIDC provider are shared. A second env roughly doubles the bill.
 

@@ -1,0 +1,58 @@
+# Build the React app and publish it to S3 + CloudFront.
+# Manual only. Also callable from deploy.yml.
+#
+# Environment variables (Settings → Environments → production → Variables):
+#   AWS_REGION, AWS_DEPLOY_ROLE_ARN, FRONTEND_BUCKET, CLOUDFRONT_DISTRIBUTION_ID,
+#   VITE_BACKEND_URL (the terraform `backend_url` output: https://<cloudfront>/api)
+name: Deploy frontend
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub environment to deploy through
+        type: environment
+        default: production
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        default: production
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-frontend-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - run: mise run fe:install
+      - name: Build
+        env:
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
+        run: mise run fe:build
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Sync to S3 and invalidate CloudFront
+        run: |
+          aws s3 sync frontend/dist "s3://${{ vars.FRONTEND_BUCKET }}" --delete
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*" >/dev/null
+      - name: Summary
+        run: |
+          {
+            echo "## Frontend deployed"
+            echo "- commit: \`${GITHUB_SHA}\`"
+            echo "- bucket: \`${{ vars.FRONTEND_BUCKET }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

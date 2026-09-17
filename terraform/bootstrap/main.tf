@@ -1,7 +1,8 @@
 # One-time, per-account foundation for every other stack:
 #   * the S3 bucket that stores remote state (native lockfile locking, no DynamoDB)
 #   * the GitHub Actions OIDC provider (one per AWS account)
-#   * one CI role that may run `terraform apply` from the main branch
+#   * one CI role that may run `terraform plan`/`apply` from the production
+#     GitHub environments (branch restriction and reviewers live in GitHub)
 #   * a monthly cost budget so "free tier" stays free
 #
 # Apply once with local state, then leave it alone.
@@ -90,7 +91,7 @@ data "aws_iam_policy_document" "github_apply_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/${var.terraform_apply_branch}"]
+      values   = [for env in var.github_environments : "repo:${var.github_repository}:environment:${env}"]
     }
   }
 }
@@ -104,7 +105,7 @@ resource "aws_iam_role" "terraform_apply" {
 
 # apply creates iam roles, vpcs, databases, ... there is no meaningful
 # least-privilege policy for "all of the infrastructure"; the trust policy
-# (main branch only) is the control.
+# (production environments only) plus GitHub's environment rules are the control.
 resource "aws_iam_role_policy_attachment" "terraform_apply_admin" {
   count = local.github_enabled ? 1 : 0
 

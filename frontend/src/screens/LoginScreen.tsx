@@ -93,7 +93,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         <p className="auth-switch">
           Don’t have an account?{" "}
-          <button type="button" onClick={onSwitchToSignUp} className="auth-link">
+          <button
+            type="button"
+            onClick={onSwitchToSignUp}
+            className="auth-link"
+          >
             Sign up
           </button>
         </p>

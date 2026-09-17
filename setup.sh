@@ -85,7 +85,7 @@ write_vscode_workspace() {
     "ms-python.python",
     "ms-python.vscode-pylance",
     "charliermarsh.ruff",
-    "dbaeumer.vscode-eslint",
+    "oxc.oxc-vscode",
     "bradlc.vscode-tailwindcss",
     "hashicorp.terraform"
   ]
@@ -108,7 +108,12 @@ EOF
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnSave": true
   },
-  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "[typescript][typescriptreact][javascript][javascriptreact][json][jsonc][css]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode",
+    "editor.formatOnSave": true
+  },
+  "oxc.fmt.configPath": "frontend/.oxfmtrc.json",
+  "oxc.lint.configPath": "frontend/.oxlintrc.json",
   "js/ts.tsdk.path": "frontend/node_modules/typescript/lib",
   "terminal.integrated.env.osx": {
     "VIRTUAL_ENV": "${workspaceFolder}/.venv",
@@ -149,7 +154,7 @@ install_editor_extensions() {
     ms-python.python \
     ms-python.vscode-pylance \
     charliermarsh.ruff \
-    dbaeumer.vscode-eslint \
+    oxc.oxc-vscode \
     bradlc.vscode-tailwindcss \
     hashicorp.terraform
   do

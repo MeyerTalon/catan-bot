@@ -1,0 +1,7 @@
+/* redoc ships its own light theme; keep it readable under the dark palette */
+redoc {
+  display: block;
+  background: #fff;
+  color: #333;
+  border-radius: 0.2rem;
+}

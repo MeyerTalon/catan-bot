@@ -78,7 +78,9 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
           ← Back
         </button>
         <h1 className="auth-title">Sign up</h1>
-        <p className="auth-subtitle">Create an account with email and password.</p>
+        <p className="auth-subtitle">
+          Create an account with email and password.
+        </p>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <label htmlFor="signup-email" className="auth-label">

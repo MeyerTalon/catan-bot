@@ -243,3 +243,6 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+# mkdocs
+site/
+docs/openapi.json
