@@ -38,11 +38,12 @@ module "database" {
   name                       = local.name
   vpc_id                     = module.network.vpc_id
   subnet_ids                 = module.network.public_subnet_ids
-  allowed_security_group_ids = [module.backend.security_group_id]
+  allowed_security_group_ids = { backend = module.backend.security_group_id }
 
-  instance_class        = "db.t4g.micro"
-  allocated_storage     = 20
-  backup_retention_days = 7
+  instance_class    = "db.t4g.micro"
+  allocated_storage = 20
+  # free-plan accounts reject >1 day (FreeTierRestrictionError)
+  backup_retention_days = 1
   deletion_protection   = true
   skip_final_snapshot   = false
 }
@@ -115,6 +116,7 @@ module "frontend" {
   bucket_name   = "${local.name}-frontend-${data.aws_caller_identity.current.account_id}"
   force_destroy = false
 
+  enable_api_origin      = true
   api_origin_domain_name = module.backend.alb_dns_name
   api_path_prefix        = "/api"
 }

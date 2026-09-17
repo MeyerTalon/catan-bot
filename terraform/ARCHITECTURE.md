@@ -47,7 +47,7 @@ Request path: browser → CloudFront → (static from S3 | `/api/*` to ALB over 
 | API | IAM roles (execution, task) | pull image, read parameter, call Cognito | 0.00 |
 | DB | RDS PostgreSQL 16 `db.t4g.micro`, single-AZ | | 11.68 (0.00 while stopped, max 7 days) |
 | DB | 20 GB gp3 storage | | 2.30 |
-| DB | automated backups, 7 days | | 0.00 (free up to 20 GB) |
+| DB | automated backups, 1 day | | 0.00 (free-plan max; 7 days is rejected) |
 | DB | DB subnet group, SG, default KMS key | | 0.00 |
 | Auth | Cognito user pool + app client | ≤10 000 MAU | 0.00 |
 | Network | VPC, 2 public subnets, IGW, route table, SGs | | 0.00 |

@@ -14,8 +14,14 @@ variable "force_destroy" {
   default     = false
 }
 
+variable "enable_api_origin" {
+  description = "Proxy api_path_prefix to api_origin_domain_name. Must be a literal bool so CloudFront count/for_each is known at plan time; do not derive it from the hostname."
+  type        = bool
+  default     = false
+}
+
 variable "api_origin_domain_name" {
-  description = "Hostname (e.g. the ALB DNS name) that requests under api_path_prefix are proxied to over plain HTTP. Empty disables the API behavior."
+  description = "Hostname (e.g. the ALB DNS name) that requests under api_path_prefix are proxied to over plain HTTP. Ignored unless enable_api_origin is true."
   type        = string
   default     = ""
 }

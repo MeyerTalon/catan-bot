@@ -14,9 +14,9 @@ variable "subnet_ids" {
 }
 
 variable "allowed_security_group_ids" {
-  description = "Security groups allowed to reach Postgres on 5432 (e.g. the backend task SG)."
-  type        = list(string)
-  default     = []
+  description = "Security groups allowed to reach Postgres on 5432. Keys are static labels (e.g. backend); values may be unknown until apply."
+  type        = map(string)
+  default     = {}
 }
 
 variable "engine_version" {
@@ -50,9 +50,9 @@ variable "username" {
 }
 
 variable "backup_retention_days" {
-  description = "Automated backup retention. 0 disables backups."
+  description = "Automated backup retention. 0 disables backups. AWS free-plan accounts reject values above 1."
   type        = number
-  default     = 7
+  default     = 1
 }
 
 variable "deletion_protection" {

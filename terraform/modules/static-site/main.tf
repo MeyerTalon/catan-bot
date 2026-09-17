@@ -7,7 +7,7 @@
 locals {
   s3_origin_id  = "s3-${var.name}"
   api_origin_id = "api-${var.name}"
-  api_enabled   = var.api_origin_domain_name != ""
+  api_enabled   = var.enable_api_origin
 }
 
 data "aws_cloudfront_cache_policy" "caching_optimized" {

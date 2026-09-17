@@ -4,7 +4,7 @@ output "url" {
 }
 
 output "api_url" {
-  description = "Public base URL of the API through CloudFront; empty if no API origin was given."
+  description = "Public base URL of the API through CloudFront; empty unless enable_api_origin is true."
   value       = local.api_enabled ? "https://${aws_cloudfront_distribution.this.domain_name}${var.api_path_prefix}" : ""
 }
 
