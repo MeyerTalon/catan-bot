@@ -42,3 +42,26 @@ output "log_group_name" {
   description = "CloudWatch log group for container output."
   value       = aws_cloudwatch_log_group.this.name
 }
+
+output "execution_role_arn" {
+  description = "ECS execution role ARN; the deploy role must be allowed to pass it when registering task definitions."
+  value       = aws_iam_role.execution.arn
+}
+
+output "task_role_arn" {
+  description = "ECS task role ARN; the deploy role must be allowed to pass it when registering task definitions."
+  value       = aws_iam_role.task.arn
+}
+
+output "task_definition_family" {
+  description = "Task definition family the deploy workflow clones and re-registers with a new image."
+  value       = aws_ecs_task_definition.this.family
+}
+
+output "origin_verify_header" {
+  description = "Header name and secret value CloudFront must send for the ALB to forward the request; empty when require_origin_verify_header is false."
+  value = var.require_origin_verify_header ? {
+    (local.origin_verify_header_name) = random_password.origin_verify[0].result
+  } : {}
+  sensitive = true
+}

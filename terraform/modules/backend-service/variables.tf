@@ -14,7 +14,7 @@ variable "subnet_ids" {
 }
 
 variable "image_tag" {
-  description = "Tag of the image in this module's ECR repository to run."
+  description = "Tag of the image the task definition template references. Only the first deployment runs it: later deploys register their own revision with :<git sha> (tags are immutable), and the service ignores task definition drift."
   type        = string
   default     = "latest"
 }
@@ -74,6 +74,12 @@ variable "parameter_arns" {
   description = "SSM parameter ARNs the task execution role may read (every ARN used in var.secrets)."
   type        = list(string)
   default     = []
+}
+
+variable "require_origin_verify_header" {
+  description = "Forward only requests that carry the generated X-Origin-Verify secret (exposed as origin_verify_header) and answer everything else 403. Set false to hit the ALB directly."
+  type        = bool
+  default     = true
 }
 
 variable "restrict_ingress_to_cloudfront" {

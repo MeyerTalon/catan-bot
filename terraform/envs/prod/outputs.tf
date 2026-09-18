@@ -28,6 +28,11 @@ output "ecs_service_name" {
   value       = module.backend.service_name
 }
 
+output "ecs_task_family" {
+  description = "Task definition family the Deploy backend workflow re-registers (ECS_TASK_FAMILY variable)."
+  value       = module.backend.task_definition_family
+}
+
 output "log_group_name" {
   description = "Backend container logs."
   value       = module.backend.log_group_name

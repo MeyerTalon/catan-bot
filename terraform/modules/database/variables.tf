@@ -66,3 +66,9 @@ variable "skip_final_snapshot" {
   type        = bool
   default     = false
 }
+
+variable "ssl_root_cert_path" {
+  description = "Path, inside the container that receives DATABASE_URL, of the RDS CA bundle. When set the URL uses sslmode=verify-full; empty keeps sslmode=require (encrypted, server not authenticated)."
+  type        = string
+  default     = ""
+}

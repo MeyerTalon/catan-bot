@@ -9,8 +9,9 @@ Single environment, single AZ where AWS allows it, no autoscaling, no NAT, no pr
                     (free TLS,   │                                                              │
                      *.cloudfront.net)                                                          │
                                  └─ /api/*  ──HTTP──▶ ALB :80 ─────▶ ECS service (Fargate Spot)  │
-                                                      │ SG: CloudFront   1 task 0.25 vCPU/0.5 GB │
-                                                      │ prefix list only  public IP, :8000      │
+                                   + X-Origin-Verify  │ SG: CloudFront   1 task 0.25 vCPU/0.5 GB │
+                                                      │ prefix list;     public IP, :8000      │
+                                                      │ listener 403 w/o header                │
                                                       │                        │      │         │
                          ┌────────── VPC 10.0.0.0/16 ─┼────────────────────────┼──────┼───────┐ │
                          │  public subnet AZ-a        │   public subnet AZ-b   │      │       │ │
@@ -21,8 +22,10 @@ Single environment, single AZ where AWS allows it, no autoscaling, no NAT, no pr
                          └────────────────────────────────────────────────────────────────────┘ │
                                                                                  │              │
                                                     Cognito user pool ◀── boto3 ─┘ (sign-up,    │
-                                                    (no VPC)                        login,      │
-                                                                                    refresh)    │
+                                                    (no VPC)                        confirm,    │
+                                                                                    login,      │
+                                                                                    refresh,    │
+                                                                                    revoke)     │
                          │  ECR (image)  CloudWatch Logs  SSM Parameter Store (DATABASE_URL)  IAM │
                          └──────────────────────────────────────────────────────────────────────┘
  * second subnet exists only because ALB and RDS subnet groups require two AZs; nothing runs there.
@@ -34,9 +37,9 @@ Request path: browser → CloudFront → (static from S3 | `/api/*` to ALB over 
 
 | Layer | Resource | Why | $/month |
 |---|---|---|---|
-| Frontend | CloudFront distribution (+ OAC, CloudFront Function that strips `/api`) | TLS, CDN, serves `/` from S3 and `/api/*` from ALB | 0.00 (1 TB + 10 M req + 2 M function calls always free) |
+| Frontend | CloudFront distribution (+ OAC, response headers policy with CSP, CloudFront Functions for the SPA fallback and stripping `/api`) | TLS, CDN, serves `/` from S3 and `/api/*` from ALB | 0.00 (1 TB + 10 M req + 2 M function calls always free) |
 | Frontend | S3 bucket (+ policy, public-access block) | React build | ~0.01 |
-| Edge→API | ALB (+ target group, HTTP listener, SG) | stable endpoint for the task; only route CloudFront can use | 16.43 |
+| Edge→API | ALB (+ target group, HTTP listener with an `X-Origin-Verify` rule, SG) | stable endpoint for the task; only our CloudFront distribution can use it | 16.43 |
 | Edge→API | 2 × public IPv4 on the ALB (one per AZ, mandatory) | | 7.30 |
 | API | ECS cluster + task definition + service | schedules the container | 0.00 |
 | API | Fargate Spot, 1 task, 0.25 vCPU / 0.5 GB | runs FastAPI | ~2.70 (9.01 on-demand) |
@@ -44,7 +47,7 @@ Request path: browser → CloudFront → (static from S3 | `/api/*` to ALB over 
 | API | ECR repository (<500 MB) | image | ~0.05 |
 | API | CloudWatch log group (<5 GB) | container logs | 0.00 |
 | API | SSM Parameter Store SecureString | `DATABASE_URL` for the task | 0.00 (standard tier) |
-| API | IAM roles (execution, task) | pull image, read parameter, call Cognito | 0.00 |
+| API | IAM roles (execution, task) | pull image, read parameter (the task role has no permissions: every Cognito call is a public app-client call) | 0.00 |
 | DB | RDS PostgreSQL 16 `db.t4g.micro`, single-AZ | | 11.68 (0.00 while stopped, max 7 days) |
 | DB | 20 GB gp3 storage | | 2.30 |
 | DB | automated backups, 1 day | | 0.00 (free-plan max; 7 days is rejected) |

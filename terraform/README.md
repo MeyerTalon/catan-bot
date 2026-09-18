@@ -132,7 +132,7 @@ Workflows (Actions tab → Run workflow):
 | Workflow | What it does |
 |---|---|
 | **Terraform** | `plan` (default) or `plan-and-apply` for `terraform/envs/prod`. The plan lands in the job summary; the apply job waits for your approval on `production` and applies exactly that plan file. |
-| **Deploy backend** | builds the image, pushes `:sha` + `:latest`, rolls the ECS service, waits until stable. Migrations run in the container. |
+| **Deploy backend** | builds the image, pushes `:<sha>` (tags are immutable), registers a new task definition revision with it (cloning the latest one, so env/secret changes from Terraform ride along), points the service at it, waits until stable. Migrations run in the container. Needs the `ECS_TASK_FAMILY` variable (`ecs_task_family` output). |
 | **Deploy frontend** | builds with `VITE_BACKEND_URL`, syncs S3, invalidates CloudFront. |
 | **Deploy all** | backend, then frontend. |
 
@@ -149,7 +149,7 @@ make apply ENV=prod        # applies that plan
 make output ENV=prod ARGS="-raw backend_url"
 ```
 
-Deploy new backend code without Terraform: run the **Deploy backend** workflow (or by hand: push `:latest` and `aws ecs update-service --cluster … --service … --force-new-deployment`). For pinned deploys push an immutable tag too and `make plan ENV=prod ARGS="-var backend_image_tag=<git sha>"`.
+Deploy new backend code without Terraform: run the **Deploy backend** workflow. It is the only thing that should change the running task definition — the ECS service ignores `task_definition` drift, so a Terraform change to the task's env or secrets takes effect on the next deploy, not on apply. Rotate the CloudFront→ALB secret with `make plan ENV=prod ARGS="-replace=module.backend.random_password.origin_verify[0]"` (the distribution update takes a few minutes; the ALB answers 403 to anything without the header).
 
 Pause the database when idle: `aws rds stop-db-instance --db-instance-identifier catan-prod-postgres` (AWS restarts it after 7 days; the task will fail health checks until it is back).
 

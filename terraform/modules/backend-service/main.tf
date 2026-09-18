@@ -1,7 +1,9 @@
 # FastAPI backend: one ECS Fargate task behind an internet-facing ALB, with
 # its own ECR repository, CloudWatch logs, and IAM roles. The ALB speaks plain
 # HTTP; TLS is terminated by CloudFront in front of it (see static-site), so
-# by default the ALB only accepts traffic from CloudFront's IP ranges.
+# by default the ALB only accepts traffic from CloudFront's IP ranges and, since
+# that prefix list covers every CloudFront distribution, also requires a secret
+# header that only this site's distribution sends.
 
 data "aws_region" "current" {}
 
@@ -12,7 +14,8 @@ data "aws_ec2_managed_prefix_list" "cloudfront" {
 }
 
 locals {
-  image = "${aws_ecr_repository.this.repository_url}:${var.image_tag}"
+  image                     = "${aws_ecr_repository.this.repository_url}:${var.image_tag}"
+  origin_verify_header_name = "X-Origin-Verify"
 }
 
 # ---------------------------------------------------------------------------
@@ -21,7 +24,7 @@ locals {
 
 resource "aws_ecr_repository" "this" {
   name                 = var.name
-  image_tag_mutability = "MUTABLE" # `latest` is re-pointed on every deploy
+  image_tag_mutability = "IMMUTABLE" # deploys push :<git sha> and register a new task definition
   force_delete         = true
 
   image_scanning_configuration {
@@ -207,14 +210,60 @@ resource "aws_lb_target_group" "this" {
   }
 }
 
+# the cloudfront prefix list admits any distribution, including one an attacker
+# points at this alb; only requests carrying the header value set on our
+# distribution's origin are forwarded. rotate with
+# `-replace=module.backend.random_password.origin_verify[0]`.
+resource "random_password" "origin_verify" {
+  count = var.require_origin_verify_header ? 1 : 0
+
+  length  = 40
+  special = false
+}
+
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
   port              = 80
   protocol          = "HTTP"
 
-  default_action {
+  dynamic "default_action" {
+    for_each = var.require_origin_verify_header ? [] : [1]
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.this.arn
+    }
+  }
+
+  dynamic "default_action" {
+    for_each = var.require_origin_verify_header ? [1] : []
+    content {
+      type = "fixed-response"
+
+      fixed_response {
+        content_type = "text/plain"
+        message_body = "Forbidden"
+        status_code  = "403"
+      }
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "origin_verified" {
+  count = var.require_origin_verify_header ? 1 : 0
+
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 10
+
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.this.arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = local.origin_verify_header_name
+      values           = [random_password.origin_verify[0].result]
+    }
   }
 }
 
@@ -305,6 +354,13 @@ resource "aws_ecs_service" "this" {
   deployment_circuit_breaker {
     enable   = true
     rollback = true
+  }
+
+  lifecycle {
+    # deploys register a new task definition revision with the image for that
+    # commit and point the service at it; terraform keeps the template (env,
+    # secrets, sizing) and the next deploy clones the latest revision
+    ignore_changes = [task_definition]
   }
 
   network_configuration {

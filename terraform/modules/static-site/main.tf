@@ -26,8 +26,37 @@ data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
   name = "Managed-AllViewerExceptHostHeader"
 }
 
-data "aws_cloudfront_response_headers_policy" "security_headers" {
-  name = "Managed-SecurityHeadersPolicy"
+# the managed SecurityHeadersPolicy has no content-security-policy, which is
+# the one header that limits what an xss can do with the tokens the spa keeps
+resource "aws_cloudfront_response_headers_policy" "this" {
+  name = "${var.name}-security-headers"
+
+  security_headers_config {
+    content_security_policy {
+      content_security_policy = var.content_security_policy
+      override                = true
+    }
+
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = true
+      override                   = true
+    }
+
+    content_type_options {
+      override = true
+    }
+
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -93,6 +122,25 @@ resource "aws_cloudfront_origin_access_control" "this" {
   signing_protocol                  = "sigv4"
 }
 
+# spa fallback: paths without a file extension are client-side routes and get
+# index.html. done here rather than with custom_error_response so api 403/404s
+# reach the browser as-is instead of as a 200 with html
+resource "aws_cloudfront_function" "spa_fallback" {
+  name    = "${var.name}-spa-fallback"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  code    = <<-JS
+    function handler(event) {
+      var request = event.request;
+      var last = request.uri.substring(request.uri.lastIndexOf("/") + 1);
+      if (last.indexOf(".") === -1) {
+        request.uri = "/index.html";
+      }
+      return request;
+    }
+  JS
+}
+
 # strips the api prefix so the backend sees its own routes (free: 2M invocations/month)
 resource "aws_cloudfront_function" "strip_api_prefix" {
   count = local.api_enabled ? 1 : 0
@@ -138,6 +186,15 @@ resource "aws_cloudfront_distribution" "this" {
         origin_protocol_policy = "http-only" # the alb has no certificate; traffic stays inside aws
         origin_ssl_protocols   = ["TLSv1.2"]
       }
+
+      # proves to the origin that the request came through this distribution
+      dynamic "custom_header" {
+        for_each = var.api_origin_custom_headers
+        content {
+          name  = custom_header.key
+          value = custom_header.value
+        }
+      }
     }
   }
 
@@ -148,7 +205,12 @@ resource "aws_cloudfront_distribution" "this" {
     viewer_protocol_policy     = "redirect-to-https"
     compress                   = true
     cache_policy_id            = data.aws_cloudfront_cache_policy.caching_optimized.id
-    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security_headers.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.this.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_fallback.arn
+    }
   }
 
   dynamic "ordered_cache_behavior" {
@@ -168,21 +230,6 @@ resource "aws_cloudfront_distribution" "this" {
         function_arn = aws_cloudfront_function.strip_api_prefix[0].arn
       }
     }
-  }
-
-  # spa fallback: unknown paths serve index.html so client-side routing works
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
-  }
-
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
   }
 
   restrictions {
