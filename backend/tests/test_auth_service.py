@@ -13,7 +13,15 @@ from botocore.exceptions import ClientError
 from fastapi import HTTPException
 
 from app.core import config
-from app.schemas.auth import AuthLoginRequest, AuthRefreshRequest, AuthSignupRequest
+from app.schemas.auth import (
+    AuthConfirmRequest,
+    AuthLoginRequest,
+    AuthLogoutRequest,
+    AuthRefreshRequest,
+    AuthResendConfirmationRequest,
+    AuthSignupRequest,
+    AuthUser,
+)
 
 auth_mod = importlib.import_module('app.services.auth_service')
 
@@ -120,40 +128,193 @@ def test_login_returns_session(monkeypatch: pytest.MonkeyPatch) -> None:
     client.initiate_auth.assert_called_once()
 
 
-def test_login_maps_cognito_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = MagicMock()
-    client.initiate_auth.side_effect = ClientError(
-        {
-            'Error': {
-                'Code': 'NotAuthorizedException',
-                'Message': 'Incorrect username or password.',
-            }
-        },
-        'InitiateAuth',
+def _client_error(code: str, operation: str = 'InitiateAuth') -> ClientError:
+    """Build a boto3 ClientError with the given Cognito error code.
+
+    Args:
+        code: Cognito error code.
+        operation: Operation name.
+
+    Returns:
+        ClientError instance.
+    """
+    return ClientError(
+        {'Error': {'Code': code, 'Message': f'{code} raw message'}}, operation
     )
+
+
+def test_login_maps_known_cognito_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = MagicMock()
+    client.initiate_auth.side_effect = _client_error('NotAuthorizedException')
     monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
 
     with pytest.raises(HTTPException) as exc_info:
         auth_mod.login(MagicMock(), AuthLoginRequest(email='a@b.com', password='bad'))
 
     assert exc_info.value.status_code == 400
-    assert 'Incorrect username or password' in str(exc_info.value.detail)
+    assert exc_info.value.detail == 'Incorrect email or password.'
 
 
-def test_signup_confirms_and_logs_in(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unknown_user_and_bad_password_are_indistinguishable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     client = MagicMock()
+    monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
+    details: list[str] = []
+    for code in ('UserNotFoundException', 'NotAuthorizedException'):
+        client.initiate_auth.side_effect = _client_error(code)
+        with pytest.raises(HTTPException) as exc_info:
+            auth_mod.login(
+                MagicMock(), AuthLoginRequest(email='a@b.com', password='bad')
+            )
+        details.append(str(exc_info.value.detail))
+    assert details[0] == details[1]
+
+
+def test_unknown_cognito_error_does_not_leak_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock()
+    client.initiate_auth.side_effect = _client_error('SomethingInternalException')
+    monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
+
+    with pytest.raises(HTTPException) as exc_info:
+        auth_mod.login(MagicMock(), AuthLoginRequest(email='a@b.com', password='bad'))
+
+    assert exc_info.value.detail == 'Login failed.'
+    assert 'raw message' not in str(exc_info.value.detail)
+
+
+def test_signup_outside_production_confirms_and_logs_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock()
+    client.sign_up.return_value = {'UserConfirmed': False}
     client.initiate_auth.return_value = {'AuthenticationResult': _auth_result()}
     monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
     monkeypatch.setattr(auth_mod.user_crud, 'get', lambda db, user_id: MagicMock())
 
-    session = auth_mod.signup(
+    result = auth_mod.signup(
         MagicMock(),
         AuthSignupRequest(email='a@b.com', password='secret', username='player'),
     )
 
-    assert session.user.id == USER_ID
+    assert result.confirmation_required is False
+    assert result.session is not None
+    assert result.session.user.id == USER_ID
     client.sign_up.assert_called_once()
     client.admin_confirm_sign_up.assert_called_once()
+
+
+def test_signup_in_production_requires_email_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv('ENVIRONMENT', 'production')
+    config.get_settings.cache_clear()
+    client = MagicMock()
+    client.sign_up.return_value = {'UserConfirmed': False}
+    monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
+
+    result = auth_mod.signup(
+        MagicMock(), AuthSignupRequest(email='a@b.com', password='secret')
+    )
+
+    assert result.confirmation_required is True
+    assert result.session is None
+    client.admin_confirm_sign_up.assert_not_called()
+    client.initiate_auth.assert_not_called()
+
+
+def test_signup_in_production_hides_existing_accounts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv('ENVIRONMENT', 'production')
+    config.get_settings.cache_clear()
+    client = MagicMock()
+    client.sign_up.side_effect = _client_error('UsernameExistsException', 'SignUp')
+    monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
+
+    result = auth_mod.signup(
+        MagicMock(), AuthSignupRequest(email='a@b.com', password='secret')
+    )
+
+    assert result.confirmation_required is True
+    assert result.session is None
+
+
+def test_confirm_maps_bad_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = MagicMock()
+    client.confirm_sign_up.side_effect = _client_error(
+        'CodeMismatchException', 'ConfirmSignUp'
+    )
+    monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
+
+    with pytest.raises(HTTPException) as exc_info:
+        auth_mod.confirm(AuthConfirmRequest(email='a@b.com', code='000000'))
+
+    assert exc_info.value.detail == 'Invalid confirmation code.'
+
+
+def test_resend_confirmation_same_answer_for_unknown_email(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock()
+    client.resend_confirmation_code.side_effect = _client_error(
+        'UserNotFoundException', 'ResendConfirmationCode'
+    )
+    monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
+
+    unknown = auth_mod.resend_confirmation(
+        AuthResendConfirmationRequest(email='nobody@b.com')
+    )
+    client.resend_confirmation_code.side_effect = None
+    known = auth_mod.resend_confirmation(AuthResendConfirmationRequest(email='a@b.com'))
+
+    assert unknown == known
+
+
+def test_ensure_user_rejects_email_owned_by_another_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_mod.user_crud, 'get', lambda db, user_id: None)
+    monkeypatch.setattr(
+        auth_mod.user_crud, 'get_by_email', lambda db, email: MagicMock()
+    )
+    created: list[Any] = []
+    monkeypatch.setattr(
+        auth_mod.user_crud, 'create', lambda db, **kwargs: created.append(kwargs)
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        auth_mod._ensure_user(MagicMock(), AuthUser(id=USER_ID, email='a@b.com'))
+
+    assert exc_info.value.status_code == 409
+    assert created == []
+
+
+def test_logout_revokes_and_signs_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = MagicMock()
+    monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
+
+    auth_mod.logout(AuthLogoutRequest(refresh_token='rt'), access_token='at')
+
+    client.revoke_token.assert_called_once_with(Token='rt', ClientId='clientid')
+    client.global_sign_out.assert_called_once_with(AccessToken='at')
+
+
+def test_logout_succeeds_when_token_already_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock()
+    client.revoke_token.side_effect = _client_error(
+        'UnauthorizedException', 'RevokeToken'
+    )
+    monkeypatch.setattr(auth_mod, '_cognito_client', lambda: client)
+
+    result = auth_mod.logout(AuthLogoutRequest(refresh_token='rt'), access_token=None)
+
+    assert result.message == 'Logged out.'
+    client.global_sign_out.assert_not_called()
 
 
 def test_refresh_echoes_refresh_token(monkeypatch: pytest.MonkeyPatch) -> None:

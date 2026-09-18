@@ -153,9 +153,14 @@ depends = ["be:openapi"]
 dir = "frontend"
 run = "pnpm run generate:api"
 
+[tasks."fe:audit"]
+description = "Fail on high/critical advisories in production dependencies"
+dir = "frontend"
+run = "pnpm audit --prod --audit-level=high"
+
 [tasks."fe:check"]
-description = "oxfmt --check, oxlint, and tsc"
-depends = ["fe:format-check", "fe:lint", "fe:typecheck"]
+description = "oxfmt --check, oxlint, tsc, and pnpm audit"
+depends = ["fe:format-check", "fe:lint", "fe:typecheck", "fe:audit"]
 
 # --- bot ---
 

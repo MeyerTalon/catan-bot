@@ -1,10 +1,11 @@
-"""Auth service: Amazon Cognito login, signup, and token refresh."""
+"""Auth service: Amazon Cognito signup, confirmation, login, refresh, and logout."""
 
 from __future__ import annotations
 
 import base64
 import hashlib
 import hmac
+import logging
 import uuid
 from typing import Any, NoReturn
 
@@ -18,12 +19,40 @@ from app.core.config import Settings, get_settings
 from app.crud.user import user_crud
 from app.models.user import User
 from app.schemas.auth import (
+    AuthConfirmRequest,
     AuthLoginRequest,
+    AuthLogoutRequest,
+    AuthMessageResponse,
     AuthRefreshRequest,
+    AuthResendConfirmationRequest,
     AuthSessionResponse,
     AuthSignupRequest,
+    AuthSignupResponse,
     AuthUser,
 )
+
+logger = logging.getLogger(__name__)
+
+# cognito error codes with a message that is safe to show. anything else gets the
+# caller's fallback so the response cannot leak which accounts exist or why
+# cognito rejected a request; the real code is logged server-side.
+_SAFE_MESSAGES: dict[str, str] = {
+    'NotAuthorizedException': 'Incorrect email or password.',
+    # same wording as a bad password so the pair cannot tell accounts apart
+    # (cognito masks this itself with prevent_user_existence_errors; the
+    # emulator does not)
+    'UserNotFoundException': 'Incorrect email or password.',
+    'UserNotConfirmedException': 'Confirm your email before logging in.',
+    'PasswordResetRequiredException': 'A password reset is required.',
+    'InvalidPasswordException': 'Password does not meet the pool requirements.',
+    'InvalidParameterException': 'Invalid request.',
+    'CodeMismatchException': 'Invalid confirmation code.',
+    'ExpiredCodeException': 'Confirmation code expired. Request a new one.',
+    'LimitExceededException': 'Too many attempts. Try again later.',
+    'TooManyRequestsException': 'Too many attempts. Try again later.',
+}
+
+CONFIRMATION_SENT = 'Check your email for a confirmation code.'
 
 
 def _cognito_client() -> Any:
@@ -87,20 +116,55 @@ def _auth_parameters(
     return params
 
 
-def _raise_cognito_error(exc: ClientError, fallback: str) -> NoReturn:
-    """Map a Cognito ClientError to an HTTPException.
+def _with_secret_hash(username: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Add SecretHash to a non-InitiateAuth call's kwargs when the client has a secret.
+
+    Args:
+        username: Cognito username.
+        kwargs: Call kwargs (ClientId, Username, ...).
+
+    Returns:
+        The same dict, with SecretHash set when applicable.
+    """
+    secret_hash = _secret_hash(username, get_settings())
+    if secret_hash:
+        kwargs['SecretHash'] = secret_hash
+    return kwargs
+
+
+def _error_code(exc: ClientError) -> str:
+    """Read the Cognito error code from a boto3 ClientError.
 
     Args:
         exc: boto3 client error.
-        fallback: Message used when Cognito does not provide one.
+
+    Returns:
+        Error code string, or '' when absent.
+    """
+    code: str = exc.response.get('Error', {}).get('Code', '')
+    return code
+
+
+def _raise_cognito_error(exc: ClientError, fallback: str) -> NoReturn:
+    """Map a Cognito ClientError to a 400 with a non-revealing message.
+
+    Args:
+        exc: boto3 client error.
+        fallback: Message used when the error code has no safe message.
 
     Raises:
-        HTTPException: 400 with Cognito's error message.
+        HTTPException: 400 with a safe message; the real code and message are logged.
     """
-    error = exc.response.get('Error', {})
-    message = error.get('Message') or fallback
+    code = _error_code(exc)
+    logger.warning(
+        'cognito %s failed: %s: %s',
+        exc.operation_name,
+        code,
+        exc.response.get('Error', {}).get('Message'),
+    )
     raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST, detail=message
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=_SAFE_MESSAGES.get(code, fallback),
     ) from exc
 
 
@@ -161,14 +225,22 @@ def _ensure_user(db: Session, auth_user: AuthUser) -> User:
 
     Returns:
         Existing or newly created User row.
+
+    Raises:
+        HTTPException: 409 if the email already belongs to a row with a different
+            id. silently adopting that row would let its owner be locked out, so
+            the mismatch is surfaced instead.
     """
     existing = user_crud.get(db, auth_user.id)
     if existing:
         return existing
     email = auth_user.email or f'{auth_user.id}@users.invalid'
-    by_email = user_crud.get_by_email(db, email)
-    if by_email:
-        return by_email
+    if user_crud.get_by_email(db, email):
+        logger.error('users row for %s exists under a different id', email)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='This account is in conflict with an existing profile. Contact support.',
+        )
     return user_crud.create(db, id=uuid.UUID(auth_user.id), email=email)
 
 
@@ -234,19 +306,22 @@ def login(db: Session, payload: AuthLoginRequest) -> AuthSessionResponse:
             ),
         )
     except ClientError as exc:
-        _raise_cognito_error(exc, 'Login failed')
+        _raise_cognito_error(exc, 'Login failed.')
     return _session_from_auth_result(db, response.get('AuthenticationResult') or {})
 
 
-def signup(db: Session, payload: AuthSignupRequest) -> AuthSessionResponse:
-    """Sign up via Cognito, confirm when allowed, then log in.
+def signup(db: Session, payload: AuthSignupRequest) -> AuthSignupResponse:
+    """Sign up via Cognito; the account is confirmed by email before it can log in.
+
+    outside production (the local emulator sends no email) the account is
+    confirmed with an admin call and logged in at once.
 
     Args:
         db: Database session.
         payload: Signup request containing email, password, and optional username.
 
     Returns:
-        Session tokens and user identity.
+        Whether confirmation is pending, plus a session when it is not.
 
     Raises:
         HTTPException: 400 if signup fails; 503 if Cognito is not configured.
@@ -257,40 +332,101 @@ def signup(db: Session, payload: AuthSignupRequest) -> AuthSessionResponse:
     if payload.username:
         attributes.append({'Name': 'name', 'Value': payload.username})
 
-    sign_up_kwargs: dict[str, Any] = {
-        'ClientId': settings.cognito_client_id,
-        'Username': payload.email,
-        'Password': payload.password,
-        'UserAttributes': attributes,
-    }
-    secret_hash = _secret_hash(payload.email, settings)
-    if secret_hash:
-        sign_up_kwargs['SecretHash'] = secret_hash
-
     try:
-        client.sign_up(**sign_up_kwargs)
+        response = client.sign_up(
+            **_with_secret_hash(
+                payload.email,
+                {
+                    'ClientId': settings.cognito_client_id,
+                    'Username': payload.email,
+                    'Password': payload.password,
+                    'UserAttributes': attributes,
+                },
+            )
+        )
     except ClientError as exc:
-        _raise_cognito_error(exc, 'Signup failed')
+        # in production an existing account gets the same answer as a new one so
+        # signup cannot be used to enumerate emails
+        if _error_code(exc) == 'UsernameExistsException' and settings.is_production:
+            logger.info('signup for an existing email')
+            return AuthSignupResponse(email=payload.email, confirmation_required=True)
+        _raise_cognito_error(exc, 'Signup failed.')
 
-    try:
+    confirmed = bool(response.get('UserConfirmed'))
+    if not confirmed and settings.is_production:
+        return AuthSignupResponse(email=payload.email, confirmation_required=True)
+
+    if not confirmed:
         client.admin_confirm_sign_up(
             UserPoolId=settings.cognito_user_pool_id,
             Username=payload.email,
         )
-    except ClientError:
-        pass
+    session = login(
+        db, AuthLoginRequest(email=payload.email, password=payload.password)
+    )
+    return AuthSignupResponse(
+        email=payload.email, confirmation_required=False, session=session
+    )
 
+
+def confirm(payload: AuthConfirmRequest) -> AuthMessageResponse:
+    """Confirm a signup with the code Cognito emailed.
+
+    Args:
+        payload: Email and confirmation code.
+
+    Returns:
+        Acknowledgement; the client logs in afterwards.
+
+    Raises:
+        HTTPException: 400 if the code is wrong or expired; 503 if Cognito is not configured.
+    """
+    settings = get_settings()
+    client = _cognito_client()
     try:
-        return login(
-            db, AuthLoginRequest(email=payload.email, password=payload.password)
+        client.confirm_sign_up(
+            **_with_secret_hash(
+                payload.email,
+                {
+                    'ClientId': settings.cognito_client_id,
+                    'Username': payload.email,
+                    'ConfirmationCode': payload.code,
+                },
+            )
         )
-    except HTTPException as exc:
-        if exc.status_code == status.HTTP_400_BAD_REQUEST:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail='Account created. Confirm your email before logging in.',
-            ) from exc
-        raise
+    except ClientError as exc:
+        _raise_cognito_error(exc, 'Confirmation failed.')
+    return AuthMessageResponse(message='Email confirmed. You can log in now.')
+
+
+def resend_confirmation(payload: AuthResendConfirmationRequest) -> AuthMessageResponse:
+    """Ask Cognito to email a fresh confirmation code.
+
+    Args:
+        payload: Email used at signup.
+
+    Returns:
+        Acknowledgement. the wording is the same whether or not the account exists.
+
+    Raises:
+        HTTPException: 400 on a Cognito error other than an unknown account;
+            503 if Cognito is not configured.
+    """
+    settings = get_settings()
+    client = _cognito_client()
+    try:
+        client.resend_confirmation_code(
+            **_with_secret_hash(
+                payload.email,
+                {'ClientId': settings.cognito_client_id, 'Username': payload.email},
+            )
+        )
+    except ClientError as exc:
+        if _error_code(exc) == 'UserNotFoundException':
+            logger.info('resend requested for an unknown email')
+            return AuthMessageResponse(message=CONFIRMATION_SENT)
+        _raise_cognito_error(exc, 'Could not resend the confirmation code.')
+    return AuthMessageResponse(message=CONFIRMATION_SENT)
 
 
 def refresh(db: Session, payload: AuthRefreshRequest) -> AuthSessionResponse:
@@ -319,10 +455,46 @@ def refresh(db: Session, payload: AuthRefreshRequest) -> AuthSessionResponse:
             AuthParameters=_auth_parameters(username, extra),
         )
     except ClientError as exc:
-        _raise_cognito_error(exc, 'Refresh failed')
+        _raise_cognito_error(exc, 'Session expired. Log in again.')
     result = dict(response.get('AuthenticationResult') or {})
     result.setdefault('RefreshToken', payload.refresh_token)
     return _session_from_auth_result(db, result)
+
+
+def logout(payload: AuthLogoutRequest, access_token: str | None) -> AuthMessageResponse:
+    """Revoke a refresh token (and, when given, sign out the access token's session).
+
+    revocation is best effort: a token that is already invalid still yields a
+    successful logout, since the outcome the client wants is the same.
+
+    Args:
+        payload: Refresh token to revoke.
+        access_token: Bearer token from the request, if any.
+
+    Returns:
+        Acknowledgement.
+
+    Raises:
+        HTTPException: 503 if Cognito is not configured.
+    """
+    settings = get_settings()
+    client = _cognito_client()
+    revoke_kwargs: dict[str, Any] = {
+        'Token': payload.refresh_token,
+        'ClientId': settings.cognito_client_id,
+    }
+    if settings.cognito_client_secret:
+        revoke_kwargs['ClientSecret'] = settings.cognito_client_secret
+    try:
+        client.revoke_token(**revoke_kwargs)
+    except ClientError as exc:
+        logger.info('revoke_token failed: %s', _error_code(exc))
+    if access_token:
+        try:
+            client.global_sign_out(AccessToken=access_token)
+        except ClientError as exc:
+            logger.info('global_sign_out failed: %s', _error_code(exc))
+    return AuthMessageResponse(message='Logged out.')
 
 
 class AuthService:
@@ -330,7 +502,10 @@ class AuthService:
 
     login = staticmethod(login)
     signup = staticmethod(signup)
+    confirm = staticmethod(confirm)
+    resend_confirmation = staticmethod(resend_confirmation)
     refresh = staticmethod(refresh)
+    logout = staticmethod(logout)
 
 
 auth_service = AuthService()

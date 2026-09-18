@@ -1,0 +1,33 @@
+# Keeps the pinned action SHAs, lockfiles, and base images current. Every
+# update still lands as a PR that CI must pass.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ["*"]
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directories: ["/backend", "/frontend"]
+    schedule:
+      interval: weekly
+  - package-ecosystem: terraform
+    directories: ["/terraform/bootstrap", "/terraform/envs/*", "/terraform/modules/*"]
+    schedule:
+      interval: weekly

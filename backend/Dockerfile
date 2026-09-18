@@ -29,6 +29,10 @@ RUN groupadd --gid 1000 app && useradd --uid 1000 --gid app --shell /bin/false a
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app backend/app ./app
 COPY --chown=app:app db ./db
+# rds ca bundle so DATABASE_URL can use sslmode=verify-full (terraform sets the
+# sslrootcert path to this file); aws rotates the bundle rarely, so it is
+# fetched at build time rather than pinned
+ADD --chown=app:app https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem ./rds-global-bundle.pem
 USER app
 
 ENV PATH="/app/.venv/bin:$PATH" \

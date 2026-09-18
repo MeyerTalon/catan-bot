@@ -22,6 +22,7 @@ Full-stack Catan app plus an LLM move-selection bot. Top-level pieces:
 - The `catan_bot` CLI (`typer`, `pydantic`, `requests`) is the root package of that workspace; it needs Ollama running with the `gpt-oss` model pulled. Run with `mise run bot:choose-move` or `uv run catan-bot`
 - Copy `backend/.env.example` to `backend/.env` for local backend config; never commit `.env` files or secrets
 - Frontend local config goes in `frontend/.env.local` (`VITE_BACKEND_URL`; see `frontend/.env.example`)
+- Backend auth is environment-aware: `ENVIRONMENT=production` makes signup require the emailed Cognito confirmation code (`/auth/confirm`); anything else auto-confirms via `admin_confirm_sign_up` because the emulator sends no mail. `CORS_ALLOWED_ORIGINS` (comma-separated) is only needed when the Vite dev server calls the backend directly (`.generated/host.env` sets it); behind the compose edge or CloudFront the API is same-origin and CORS stays off. `TRUSTED_PROXY_HOPS` tells the rate limiter how many proxies append to `X-Forwarded-For` (compose edge 1, CloudFront + ALB 2)
 - Local Cognito: the backend's optional `COGNITO_ENDPOINT_URL` (boto3 `endpoint_url`) and `COGNITO_JWKS_URL` (token verification) point it at an emulator; unset means real AWS. The compose stack sets them for the `backend` container, and `.generated/host.env` (written by `cognito-local-init`) carries the host-side values for `mise run be:dev` against the containers (`set -a; . .generated/host.env; set +a`). Stack state is ephemeral by design (moto is in-memory; `dev:down` also drops Postgres so users and identities never drift apart); the seeded dev user's `sub` is deterministic (moto rng seeded before creating it), so it survives even a moto-only restart. Moto's host port defaults to 5001 (macOS AirPlay owns 5000)
 - Terraform >= 1.10 (pinned by mise). `tflint` is optional and also pinned. AWS credentials go in `~/.aws/credentials` or env vars, never the repo. The only tfvars file is `terraform/bootstrap/terraform.tfvars` (copy from `.example`, gitignored); envs take their values from `locals` in `envs/<env>/main.tf`. The only secret (RDS password) is Terraform-generated into SSM Parameter Store; nothing secret passes through variables — see `terraform/README.md`
 
@@ -45,7 +46,7 @@ mise run dev:down                # stop and delete state (postgres + moto users)
 
 # frontend
 mise run fe:dev                  # Vite; opens Google Chrome via BROWSER env
-mise run fe:check                # oxfmt --check, oxlint (warnings fail), tsc --noEmit
+mise run fe:check                # oxfmt --check, oxlint (warnings fail), tsc --noEmit, pnpm audit (high+)
 mise run fe:format               # write oxfmt formatting
 mise run fe:build
 mise run api                     # export OpenAPI + regenerate TS types
@@ -74,7 +75,7 @@ Backend listens at `http://localhost:8000` (docs: `http://localhost:8000/docs`).
 
 - Never push directly to `main`; work on a feature branch and open a PR. Nothing deploys on push: `ci.yml` (checks only) runs on PRs and on `main`; deploys and Terraform applies are manually dispatched workflows gated by the `production` GitHub environment
 - Work on a feature branch (e.g. `talon/<topic>`), open a PR into `main`, and let CI run there. This applies to the `push` skill too: it pushes the current branch, so make sure you are not on `main`
-- Workflows: `ci.yml` (be:check, api drift, fe:check + build, docs build, tf:check + lint, secret scan), `docs.yml` (MkDocs → GitHub Pages; the only auto-deploy, runs on `main` when docs/READMEs/OpenAPI change), `deploy-backend.yml`, `deploy-frontend.yml`, `deploy.yml` (both), `terraform.yml` (plan → approval → apply). Never add a push/PR trigger to anything that touches AWS; never dispatch a deploy or Terraform workflow yourself — that is the user's action in the GitHub UI. `catan_bot/` has no tests in CI — verify locally
+- Workflows: `ci.yml` (be:check, api drift, fe:check + build, docs build, tf:check + lint, secret scan), `docs.yml` (MkDocs → GitHub Pages; the only auto-deploy, runs on `main` when docs/READMEs/OpenAPI change), `deploy-backend.yml` (pushes `:<sha>` to the immutable ECR repo, registers a task definition revision with it, rolls the service), `deploy-frontend.yml`, `deploy.yml` (both), `terraform.yml` (plan → approval → apply). Action `uses:` are pinned to commit SHAs (Dependabot bumps them); keep new ones pinned too. Never add a push/PR trigger to anything that touches AWS; never dispatch a deploy or Terraform workflow yourself — that is the user's action in the GitHub UI. `catan_bot/` has no tests in CI — verify locally
 
 ## Layout & conventions
 

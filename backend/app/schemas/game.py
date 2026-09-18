@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# generous for a serialized board; keeps a single request from filling the table
+MAX_STATE_BYTES = 64 * 1024
 
 
 class GameSessionBase(BaseModel):
@@ -20,6 +24,25 @@ class GameSessionBase(BaseModel):
         default_factory=dict,
         description='Serialized Catan game state.',
     )
+
+    @field_validator('state')
+    @classmethod
+    def _state_fits(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """Reject a state whose JSON encoding exceeds MAX_STATE_BYTES.
+
+        Args:
+            value: Parsed state dict.
+
+        Returns:
+            The same dict when it fits.
+
+        Raises:
+            ValueError: If the serialized state is too large.
+        """
+        size = len(json.dumps(value, separators=(',', ':')).encode('utf-8'))
+        if size > MAX_STATE_BYTES:
+            raise ValueError(f'state exceeds {MAX_STATE_BYTES} bytes ({size}).')
+        return value
 
 
 class GameSessionCreate(GameSessionBase):

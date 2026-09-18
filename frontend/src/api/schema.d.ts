@@ -48,7 +48,7 @@ export interface paths {
          *         Session tokens and user identity.
          *
          *     Raises:
-         *         HTTPException: 400 if login fails; 503 if Cognito is not configured.
+         *         HTTPException: 400 if login fails; 429 when rate limited; 503 if Cognito is not configured.
          */
         post: operations["login_auth_login_post"];
         delete?: never;
@@ -75,12 +75,70 @@ export interface paths {
          *         db: Database session (injected dependency).
          *
          *     Returns:
-         *         Session tokens and user identity.
+         *         Whether email confirmation is pending, plus a session when it is not.
          *
          *     Raises:
-         *         HTTPException: 400 if signup fails; 503 if Cognito is not configured.
+         *         HTTPException: 400 if signup fails; 429 when rate limited; 503 if Cognito is not configured.
          */
         post: operations["signup_auth_signup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm
+         * @description Confirm a signup with the code Cognito emailed.
+         *
+         *     Args:
+         *         payload: Email and confirmation code.
+         *
+         *     Returns:
+         *         Acknowledgement; log in afterwards.
+         *
+         *     Raises:
+         *         HTTPException: 400 if the code is wrong or expired; 429 when rate limited.
+         */
+        post: operations["confirm_auth_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/resend-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Confirmation
+         * @description Email a fresh confirmation code.
+         *
+         *     Args:
+         *         payload: Email used at signup.
+         *
+         *     Returns:
+         *         Acknowledgement, identical whether or not the account exists.
+         *
+         *     Raises:
+         *         HTTPException: 400 on a Cognito error; 429 when rate limited.
+         */
+        post: operations["resend_confirmation_auth_resend_confirmation_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -108,7 +166,7 @@ export interface paths {
          *         New session tokens.
          *
          *     Raises:
-         *         HTTPException: 400 if refresh fails; 503 if Cognito is not configured.
+         *         HTTPException: 400 if refresh fails; 429 when rate limited; 503 if Cognito is not configured.
          */
         post: operations["refresh_auth_refresh_post"];
         delete?: never;
@@ -117,7 +175,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/users": {
+    "/auth/logout": {
         parameters: {
             query?: never;
             header?: never;
@@ -127,23 +185,23 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create User
-         * @description Create a user profile (id and email).
+         * Logout
+         * @description Revoke the refresh token and sign out the current session.
+         *
+         *     the bearer token is optional and not validated: an expired access token
+         *     must still be able to log out.
          *
          *     Args:
-         *         payload: User creation data containing id (UUID) and email.
-         *         db: Database session (injected dependency).
+         *         payload: Refresh token to revoke.
+         *         authorization: Optional "Bearer <token>" header.
          *
          *     Returns:
-         *         Created user profile as UserRead schema.
+         *         Acknowledgement.
          *
          *     Raises:
-         *         HTTPException: 400 if user already exists.
-         *
-         *     Note:
-         *         This endpoint is public. Signup already upserts a profile; this remains for clients that create one separately.
+         *         HTTPException: 429 when rate limited; 503 if Cognito is not configured.
          */
-        post: operations["create_user_users_post"];
+        post: operations["logout_auth_logout_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -160,6 +218,8 @@ export interface paths {
         /**
          * Get User
          * @description Get a user by UUID.
+         *
+         *     profiles are created by signup and login; there is no public create route.
          *
          *     Args:
          *         user_id: User UUID as string (from path parameter).
@@ -247,6 +307,23 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AuthConfirmRequest
+         * @description Request body for POST /auth/confirm.
+         *
+         *     Attributes:
+         *         email: Email used at signup.
+         *         code: Verification code Cognito emailed to that address.
+         */
+        AuthConfirmRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Code */
+            code: string;
+        };
+        /**
          * AuthLoginRequest
          * @description Request body for POST /auth/login.
          *
@@ -264,6 +341,28 @@ export interface components {
             password: string;
         };
         /**
+         * AuthLogoutRequest
+         * @description Request body for POST /auth/logout.
+         *
+         *     Attributes:
+         *         refresh_token: Refresh token to revoke. its access tokens stop working too.
+         */
+        AuthLogoutRequest: {
+            /** Refresh Token */
+            refresh_token: string;
+        };
+        /**
+         * AuthMessageResponse
+         * @description Acknowledgement for auth actions that return no session.
+         *
+         *     Attributes:
+         *         message: Human-readable outcome.
+         */
+        AuthMessageResponse: {
+            /** Message */
+            message: string;
+        };
+        /**
          * AuthRefreshRequest
          * @description Request body for POST /auth/refresh.
          *
@@ -276,6 +375,20 @@ export interface components {
             refresh_token: string;
             /** Username */
             username?: string | null;
+        };
+        /**
+         * AuthResendConfirmationRequest
+         * @description Request body for POST /auth/resend-confirmation.
+         *
+         *     Attributes:
+         *         email: Email used at signup.
+         */
+        AuthResendConfirmationRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
         };
         /**
          * AuthSessionResponse
@@ -327,6 +440,24 @@ export interface components {
             password: string;
             /** Username */
             username?: string | null;
+        };
+        /**
+         * AuthSignupResponse
+         * @description Payload returned by signup.
+         *
+         *     Attributes:
+         *         email: Address the account was created for.
+         *         confirmation_required: True when Cognito emailed a verification code and
+         *             the client must call /auth/confirm before logging in.
+         *         session: Session tokens, only when the account was confirmed at once
+         *             (local development against the emulator).
+         */
+        AuthSignupResponse: {
+            /** Email */
+            email: string;
+            /** Confirmation Required */
+            confirmation_required: boolean;
+            session?: components["schemas"]["AuthSessionResponse"] | null;
         };
         /**
          * AuthUser
@@ -413,27 +544,6 @@ export interface components {
         HealthResponse: {
             /** Status */
             status: string;
-        };
-        /**
-         * UserCreate
-         * @description Payload to create a user profile linked to a Cognito user.
-         *
-         *     Attributes:
-         *         id: Cognito user UUID (`sub`).
-         *         email: User email address.
-         */
-        UserCreate: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /**
-             * Id
-             * Format: uuid
-             * @description Cognito user UUID. Must match the authenticated `sub` claim.
-             */
-            id: string;
         };
         /**
          * UserRead
@@ -555,7 +665,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthSessionResponse"];
+                    "application/json": components["schemas"]["AuthSignupResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_auth_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthMessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_confirmation_auth_resend_confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthResendConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthMessageResponse"];
                 };
             };
             /** @description Validation Error */
@@ -602,16 +778,18 @@ export interface operations {
             };
         };
     };
-    create_user_users_post: {
+    logout_auth_logout_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                Authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UserCreate"];
+                "application/json": components["schemas"]["AuthLogoutRequest"];
             };
         };
         responses: {
@@ -621,7 +799,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserRead"];
+                    "application/json": components["schemas"]["AuthMessageResponse"];
                 };
             };
             /** @description Validation Error */

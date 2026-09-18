@@ -34,7 +34,10 @@ def _jwks_client() -> jwt.PyJWKClient:
 
 
 def decode_jwt(token: str) -> dict[str, Any]:
-    """Decode and validate a Cognito JWT (access or id token).
+    """Decode and validate a Cognito access token.
+
+    id tokens are rejected: they are meant for the client, and accepting them
+    as bearer credentials would let a leaked id token reach the api.
 
     Args:
         token: JWT issued by Cognito.
@@ -43,7 +46,8 @@ def decode_jwt(token: str) -> dict[str, Any]:
         Decoded token payload.
 
     Raises:
-        HTTPException: 401 if the token is invalid or expired; 503 if Cognito is not configured.
+        HTTPException: 401 if the token is invalid, expired, not an access token,
+            or issued to another app client; 503 if Cognito is not configured.
     """
     settings = get_settings()
     if not settings.cognito_configured:
@@ -59,7 +63,8 @@ def decode_jwt(token: str) -> dict[str, Any]:
             signing_key.key,
             algorithms=['RS256'],
             issuer=settings.cognito_issuer,
-            options={'verify_aud': False},
+            # access tokens carry client_id rather than aud; it is checked below
+            options={'verify_aud': False, 'require': ['exp', 'iat', 'sub']},
         )
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
@@ -72,18 +77,13 @@ def decode_jwt(token: str) -> dict[str, Any]:
             detail='Invalid token.',
         ) from exc
 
-    token_use = payload.get('token_use')
-    if token_use not in ('access', 'id'):
+    if payload.get('token_use') != 'access':
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Invalid token use.',
         )
 
-    client_claim = payload.get('client_id') or payload.get('aud')
-    if settings.cognito_client_id and client_claim not in (
-        settings.cognito_client_id,
-        [settings.cognito_client_id],
-    ):
+    if payload.get('client_id') != settings.cognito_client_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Token client does not match.',

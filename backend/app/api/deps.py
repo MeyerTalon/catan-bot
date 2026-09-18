@@ -22,6 +22,20 @@ def get_db() -> Generator[Session, None, None]:
         yield session
 
 
+def bearer_token(authorization: str | None) -> str | None:
+    """Pull the token out of a "Bearer <token>" header value.
+
+    Args:
+        authorization: Raw Authorization header, or None when absent.
+
+    Returns:
+        The token, or None when the header is absent or not a bearer scheme.
+    """
+    if not authorization or not authorization.startswith('Bearer '):
+        return None
+    return authorization[len('Bearer ') :].strip() or None
+
+
 def get_current_user_id(authorization: str = Header(..., alias='Authorization')) -> str:
     """Extract and validate user ID from Authorization header.
 
@@ -34,12 +48,12 @@ def get_current_user_id(authorization: str = Header(..., alias='Authorization'))
     Raises:
         HTTPException: 401 if Authorization header is missing, malformed, or token is invalid.
     """
-    if not authorization.startswith('Bearer '):
+    token = bearer_token(authorization)
+    if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authorization header format. Expected 'Bearer <token>'.",
         )
-    token = authorization.replace('Bearer ', '', 1).strip()
     return get_user_id_from_token(token)
 
 

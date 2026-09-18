@@ -1,37 +1,14 @@
-"""User endpoints: create and get user profiles."""
+"""User endpoints: get the authenticated user's profile."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserRead
+from app.schemas.user import UserRead
 from app.services.user_service import user_service
 
 router = APIRouter()
-
-
-@router.post('', response_model=UserRead)
-def create_user(
-    payload: UserCreate,
-    db: Session = Depends(get_db),
-) -> UserRead:
-    """Create a user profile (id and email).
-
-    Args:
-        payload: User creation data containing id (UUID) and email.
-        db: Database session (injected dependency).
-
-    Returns:
-        Created user profile as UserRead schema.
-
-    Raises:
-        HTTPException: 400 if user already exists.
-
-    Note:
-        This endpoint is public. Signup already upserts a profile; this remains for clients that create one separately.
-    """
-    return user_service.create_user(db, payload)
 
 
 @router.get('/{user_id}', response_model=UserRead)
@@ -41,6 +18,8 @@ def get_user(
     db: Session = Depends(get_db),
 ) -> UserRead:
     """Get a user by UUID.
+
+    profiles are created by signup and login; there is no public create route.
 
     Args:
         user_id: User UUID as string (from path parameter).
