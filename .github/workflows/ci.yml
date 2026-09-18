@@ -68,3 +68,23 @@ jobs:
         run: mise run tf:check
       - name: tflint
         run: mise run tf:lint
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # gitleaks scans history, not just the tree
+      # plan and state files carry secrets in a binary/zip form that a
+      # content scanner cannot see, so the file names themselves are banned
+      - name: Fail if a plan, state, tfvars, or .env file is tracked
+        run: |
+          bad="$(git ls-files | grep -E '(^|/)(tfplan|plan\.txt|[^/]*\.tfplan|[^/]*\.tfstate(\.[^/]*)?|[^/]*\.tfvars|\.env(\.[^/]*)?)$' | grep -vE '\.example$' || true)"
+          if [ -n "$bad" ]; then
+            echo "tracked files that must never be committed:"
+            echo "$bad"
+            exit 1
+          fi
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
