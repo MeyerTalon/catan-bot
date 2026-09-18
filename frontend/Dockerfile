@@ -2,7 +2,7 @@
 # Production serves the same `pnpm run build` output from S3 behind CloudFront;
 # here nginx plays both roles (see nginx.conf). Build context is frontend/.
 #   docker build --build-arg VITE_BACKEND_URL=http://localhost:8080/api frontend
-FROM node:22-slim AS build
+FROM node:26-slim AS build
 WORKDIR /app
 
 # same pnpm as mise.toml / package.json packageManager
