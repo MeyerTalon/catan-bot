@@ -86,6 +86,8 @@ services:
     environment:
       ENVIRONMENT: development
       PORT: "8000"
+      # the edge (nginx) is the one proxy appending to X-Forwarded-For
+      TRUSTED_PROXY_HOPS: "1"
       DATABASE_URL: postgresql://catan:catan@postgres:5432/catan
       COGNITO_REGION: us-west-2
       COGNITO_ENDPOINT_URL: http://moto:5000

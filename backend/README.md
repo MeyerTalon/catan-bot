@@ -47,14 +47,18 @@ backend/
 
 ### Auth (Cognito proxy)
 
-- **`POST /auth/login`** – Log in with `email` and `password`. Proxies to Cognito; returns `AuthSessionResponse`.
-- **`POST /auth/signup`** – Sign up with `email`, `password`, and optional `username`. Creates the Cognito user, upserts a `users` row, returns a session when confirmation succeeds.
+- **`POST /auth/signup`** – Sign up with `email`, `password`, and optional `username`. Creates the Cognito user and returns `AuthSignupResponse`: in production `confirmation_required` is true and Cognito emails a code; in development the account is confirmed at once and `session` is set. An email that already exists gets the same answer in production, so signup cannot be used to enumerate accounts.
+- **`POST /auth/confirm`** – Confirm a signup with `email` and the emailed `code`. Log in afterwards.
+- **`POST /auth/resend-confirmation`** – Email a fresh code. Same response whether or not the account exists.
+- **`POST /auth/login`** – Log in with `email` and `password`. Proxies to Cognito; returns `AuthSessionResponse` and upserts the `users` row (409 if the email already belongs to a row with a different id).
 - **`POST /auth/refresh`** – Exchange a refresh token for a new access token.
+- **`POST /auth/logout`** – Revoke a `refresh_token` (and, when an `Authorization` header is sent, sign out that access token's session). Always succeeds.
+
+Auth routes are rate limited per client IP (10/min for credential routes, 30/min for refresh/logout; `429` with `Retry-After`). Cognito error details are logged, not returned; clients get a fixed set of safe messages.
 
 ### Users
 
-- **`POST /users`** – Create an application user profile (body: `id` [UUID], `email`). `id` should match the Cognito `sub`. Fails if the user already exists. **Public**. Signup already upserts a profile.
-- **`GET /users/{user_id}`** – Get a user by UUID. **Protected**. Users can only access their own profile.
+- **`GET /users/{user_id}`** – Get a user by UUID. **Protected**. Users can only access their own profile. Rows are created by signup/login; there is no public create route.
 
 ### Game sessions
 
@@ -67,7 +71,7 @@ Protected endpoints require:
 Authorization: Bearer <cognito-access-token>
 ```
 
-The backend validates the JWT against the Cognito JWKS, extracts `sub`, and ensures users can only access their own resources.
+The backend validates the JWT against the Cognito JWKS (RS256, issuer, `exp`/`iat`/`sub` required, `token_use` must be `access`, `client_id` must be this app client — id tokens are rejected), extracts `sub`, and ensures users can only access their own resources. Request bodies over 1 MB are rejected with `413`; a game session `state` is capped at 64 KB.
 
 ## Configuration
 

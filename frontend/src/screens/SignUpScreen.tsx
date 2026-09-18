@@ -10,11 +10,13 @@ import { setSession } from "@/lib/session";
 
 type SignUpScreenProps = {
   onSwitchToLogin: () => void;
+  onConfirmationRequired: (email: string) => void;
   onBack: () => void;
 };
 
 export const SignUpScreen: React.FC<SignUpScreenProps> = ({
   onSwitchToLogin,
+  onConfirmationRequired,
   onBack,
 }) => {
   const [email, setEmail] = useState("");
@@ -22,7 +24,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,10 +40,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
       if (apiError || !data) {
         throw new Error(apiErrorMessage(apiError, "Sign up failed"));
       }
-      if (data.access_token) {
-        setSession(data);
+      if (data.session) {
+        setSession(data.session);
       } else {
-        setSuccess(true);
+        onConfirmationRequired(data.email);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed");
@@ -50,19 +51,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
       setLoading(false);
     }
   };
-
-  if (success) {
-    return (
-      <AuthShell
-        title="Check your email"
-        description="We’ve sent you a confirmation link. Click it to verify your account, then log in."
-      >
-        <Button className="w-full" onClick={onSwitchToLogin}>
-          Go to log in
-        </Button>
-      </AuthShell>
-    );
-  }
 
   return (
     <AuthShell
@@ -114,7 +102,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={6}
+            minLength={8}
           />
         </div>
 

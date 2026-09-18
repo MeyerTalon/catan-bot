@@ -8,7 +8,7 @@ Wire types are generated from the backend OpenAPI schema. Do not hand-edit `src/
 
 - **React** 18
 - **TypeScript**
-- **Vite** 5
+- **Vite** 8
 - **pnpm** – package manager (`pnpm-lock.yaml`)
 - **Tailwind CSS** 4 (`@tailwindcss/vite`) + **shadcn/ui** (`radix-nova` preset, Lucide icons) – styling; see [Styling](#styling)
 - **openapi-fetch** + **openapi-typescript** – typed client from FastAPI `/openapi.json`

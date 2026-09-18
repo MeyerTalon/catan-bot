@@ -31,6 +31,38 @@ class AuthSignupRequest(BaseModel):
     username: str | None = None
 
 
+class AuthConfirmRequest(BaseModel):
+    """Request body for POST /auth/confirm.
+
+    Attributes:
+        email: Email used at signup.
+        code: Verification code Cognito emailed to that address.
+    """
+
+    email: EmailStr
+    code: str = Field(min_length=1, max_length=16)
+
+
+class AuthResendConfirmationRequest(BaseModel):
+    """Request body for POST /auth/resend-confirmation.
+
+    Attributes:
+        email: Email used at signup.
+    """
+
+    email: EmailStr
+
+
+class AuthLogoutRequest(BaseModel):
+    """Request body for POST /auth/logout.
+
+    Attributes:
+        refresh_token: Refresh token to revoke. its access tokens stop working too.
+    """
+
+    refresh_token: str
+
+
 class AuthRefreshRequest(BaseModel):
     """Request body for POST /auth/refresh.
 
@@ -75,3 +107,29 @@ class AuthSessionResponse(BaseModel):
     token_type: str = Field(default='Bearer')
     user: AuthUser
     message: str | None = None
+
+
+class AuthSignupResponse(BaseModel):
+    """Payload returned by signup.
+
+    Attributes:
+        email: Address the account was created for.
+        confirmation_required: True when Cognito emailed a verification code and
+            the client must call /auth/confirm before logging in.
+        session: Session tokens, only when the account was confirmed at once
+            (local development against the emulator).
+    """
+
+    email: str
+    confirmation_required: bool
+    session: AuthSessionResponse | None = None
+
+
+class AuthMessageResponse(BaseModel):
+    """Acknowledgement for auth actions that return no session.
+
+    Attributes:
+        message: Human-readable outcome.
+    """
+
+    message: str

@@ -31,6 +31,12 @@ class Settings(BaseModel):
         cognito_jwks_url: override for the JWKS url used to verify tokens. Only for a
             local emulator; None derives it from the issuer.
         environment: "development" or "production". Defaults to "development".
+        cors_allowed_origins: browser origins allowed to call the api cross-origin.
+            empty (the default) leaves CORS off, which is right when the api is
+            served same-origin behind CloudFront or nginx.
+        trusted_proxy_hops: number of proxies in front of the app that append to
+            X-Forwarded-For. used to pick the real client ip for rate limiting:
+            CloudFront + ALB is 2, the local nginx edge is 1, none is 0.
     """
 
     database_url: str
@@ -41,6 +47,8 @@ class Settings(BaseModel):
     cognito_endpoint_url: str | None = None
     cognito_jwks_url: str | None = None
     environment: str = 'development'
+    cors_allowed_origins: list[str] = []
+    trusted_proxy_hops: int = 0
 
     @property
     def is_production(self) -> bool:
@@ -121,4 +129,20 @@ def get_settings() -> Settings:
         cognito_endpoint_url=os.environ.get('COGNITO_ENDPOINT_URL'),
         cognito_jwks_url=os.environ.get('COGNITO_JWKS_URL'),
         environment=os.environ.get('ENVIRONMENT', 'development'),
+        cors_allowed_origins=_csv(os.environ.get('CORS_ALLOWED_ORIGINS')),
+        trusted_proxy_hops=int(os.environ.get('TRUSTED_PROXY_HOPS', '0')),
     )
+
+
+def _csv(value: str | None) -> list[str]:
+    """Split a comma-separated env value into non-empty, stripped items.
+
+    Args:
+        value: Raw env value, or None when unset.
+
+    Returns:
+        List of items; empty when the value is unset or blank.
+    """
+    if not value:
+        return []
+    return [item.strip() for item in value.split(',') if item.strip()]

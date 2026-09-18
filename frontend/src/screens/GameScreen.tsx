@@ -2,13 +2,21 @@ import React, { useState } from "react";
 import { LogOut } from "lucide-react";
 import { HexMark } from "@/components/hex-mark";
 import { Button } from "@/components/ui/button";
-import { clearSession } from "@/lib/session";
+import { api } from "@/api/client";
+import { clearSession, getSession } from "@/lib/session";
 
 export const GameScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setLoading(true);
+    const refreshToken = getSession()?.refresh_token;
+    if (refreshToken) {
+      // best effort: the local session is cleared either way
+      await api
+        .POST("/auth/logout", { body: { refresh_token: refreshToken } })
+        .catch(() => undefined);
+    }
     clearSession();
   };
 

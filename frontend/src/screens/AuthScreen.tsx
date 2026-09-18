@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import { HexMark } from "@/components/hex-mark";
 import { Button } from "@/components/ui/button";
+import { ConfirmScreen } from "./ConfirmScreen";
 import { LoginScreen } from "./LoginScreen";
 import { SignUpScreen } from "./SignUpScreen";
 
-type View = "landing" | "login" | "signup";
+type View = "landing" | "login" | "signup" | "confirm";
 
 export const AuthScreen: React.FC = () => {
   const [view, setView] = useState<View>("landing");
+  const [pendingEmail, setPendingEmail] = useState("");
 
   if (view === "login") {
     return (
@@ -22,7 +24,21 @@ export const AuthScreen: React.FC = () => {
     return (
       <SignUpScreen
         onSwitchToLogin={() => setView("login")}
+        onConfirmationRequired={(email) => {
+          setPendingEmail(email);
+          setView("confirm");
+        }}
         onBack={() => setView("landing")}
+      />
+    );
+  }
+
+  if (view === "confirm") {
+    return (
+      <ConfirmScreen
+        email={pendingEmail}
+        onConfirmed={() => setView("login")}
+        onBack={() => setView("signup")}
       />
     );
   }

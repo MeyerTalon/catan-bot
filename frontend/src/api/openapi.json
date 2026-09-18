@@ -33,7 +33,7 @@
           "auth"
         ],
         "summary": "Login",
-        "description": "Log in with email and password via Cognito.\n\nArgs:\n    payload: Login request containing email and password.\n    db: Database session (injected dependency).\n\nReturns:\n    Session tokens and user identity.\n\nRaises:\n    HTTPException: 400 if login fails; 503 if Cognito is not configured.",
+        "description": "Log in with email and password via Cognito.\n\nArgs:\n    payload: Login request containing email and password.\n    db: Database session (injected dependency).\n\nReturns:\n    Session tokens and user identity.\n\nRaises:\n    HTTPException: 400 if login fails; 429 when rate limited; 503 if Cognito is not configured.",
         "operationId": "login_auth_login_post",
         "requestBody": {
           "content": {
@@ -75,7 +75,7 @@
           "auth"
         ],
         "summary": "Signup",
-        "description": "Sign up with email and optional username via Cognito.\n\nArgs:\n    payload: Signup request containing email, password, and optional username.\n    db: Database session (injected dependency).\n\nReturns:\n    Session tokens and user identity.\n\nRaises:\n    HTTPException: 400 if signup fails; 503 if Cognito is not configured.",
+        "description": "Sign up with email and optional username via Cognito.\n\nArgs:\n    payload: Signup request containing email, password, and optional username.\n    db: Database session (injected dependency).\n\nReturns:\n    Whether email confirmation is pending, plus a session when it is not.\n\nRaises:\n    HTTPException: 400 if signup fails; 429 when rate limited; 503 if Cognito is not configured.",
         "operationId": "signup_auth_signup_post",
         "requestBody": {
           "content": {
@@ -93,7 +93,91 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthSessionResponse"
+                  "$ref": "#/components/schemas/AuthSignupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/confirm": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Confirm",
+        "description": "Confirm a signup with the code Cognito emailed.\n\nArgs:\n    payload: Email and confirmation code.\n\nReturns:\n    Acknowledgement; log in afterwards.\n\nRaises:\n    HTTPException: 400 if the code is wrong or expired; 429 when rate limited.",
+        "operationId": "confirm_auth_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/resend-confirmation": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Resend Confirmation",
+        "description": "Email a fresh confirmation code.\n\nArgs:\n    payload: Email used at signup.\n\nReturns:\n    Acknowledgement, identical whether or not the account exists.\n\nRaises:\n    HTTPException: 400 on a Cognito error; 429 when rate limited.",
+        "operationId": "resend_confirmation_auth_resend_confirmation_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthResendConfirmationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMessageResponse"
                 }
               }
             }
@@ -117,7 +201,7 @@
           "auth"
         ],
         "summary": "Refresh",
-        "description": "Refresh an access token using a Cognito refresh token.\n\nArgs:\n    payload: Refresh request.\n    db: Database session (injected dependency).\n\nReturns:\n    New session tokens.\n\nRaises:\n    HTTPException: 400 if refresh fails; 503 if Cognito is not configured.",
+        "description": "Refresh an access token using a Cognito refresh token.\n\nArgs:\n    payload: Refresh request.\n    db: Database session (injected dependency).\n\nReturns:\n    New session tokens.\n\nRaises:\n    HTTPException: 400 if refresh fails; 429 when rate limited; 503 if Cognito is not configured.",
         "operationId": "refresh_auth_refresh_post",
         "requestBody": {
           "content": {
@@ -153,23 +237,41 @@
         }
       }
     },
-    "/users": {
+    "/auth/logout": {
       "post": {
         "tags": [
-          "users"
+          "auth"
         ],
-        "summary": "Create User",
-        "description": "Create a user profile (id and email).\n\nArgs:\n    payload: User creation data containing id (UUID) and email.\n    db: Database session (injected dependency).\n\nReturns:\n    Created user profile as UserRead schema.\n\nRaises:\n    HTTPException: 400 if user already exists.\n\nNote:\n    This endpoint is public. Signup already upserts a profile; this remains for clients that create one separately.",
-        "operationId": "create_user_users_post",
+        "summary": "Logout",
+        "description": "Revoke the refresh token and sign out the current session.\n\nthe bearer token is optional and not validated: an expired access token\nmust still be able to log out.\n\nArgs:\n    payload: Refresh token to revoke.\n    authorization: Optional \"Bearer <token>\" header.\n\nReturns:\n    Acknowledgement.\n\nRaises:\n    HTTPException: 429 when rate limited; 503 if Cognito is not configured.",
+        "operationId": "logout_auth_logout_post",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UserCreate"
+                "$ref": "#/components/schemas/AuthLogoutRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -177,7 +279,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserRead"
+                  "$ref": "#/components/schemas/AuthMessageResponse"
                 }
               }
             }
@@ -201,7 +303,7 @@
           "users"
         ],
         "summary": "Get User",
-        "description": "Get a user by UUID.\n\nArgs:\n    user_id: User UUID as string (from path parameter).\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    User profile as UserRead schema.\n\nRaises:\n    HTTPException: 403 if trying to access another user's profile.\n    HTTPException: 404 if user not found.\n\nNote:\n    Requires Authorization header with a valid Cognito access token.\n    Users can only access their own profile.",
+        "description": "Get a user by UUID.\n\nprofiles are created by signup and login; there is no public create route.\n\nArgs:\n    user_id: User UUID as string (from path parameter).\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    User profile as UserRead schema.\n\nRaises:\n    HTTPException: 403 if trying to access another user's profile.\n    HTTPException: 404 if user not found.\n\nNote:\n    Requires Authorization header with a valid Cognito access token.\n    Users can only access their own profile.",
         "operationId": "get_user_users__user_id__get",
         "parameters": [
           {
@@ -366,6 +468,28 @@
   },
   "components": {
     "schemas": {
+      "AuthConfirmRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "code"
+        ],
+        "title": "AuthConfirmRequest",
+        "description": "Request body for POST /auth/confirm.\n\nAttributes:\n    email: Email used at signup.\n    code: Verification code Cognito emailed to that address."
+      },
       "AuthLoginRequest": {
         "properties": {
           "email": {
@@ -385,6 +509,34 @@
         ],
         "title": "AuthLoginRequest",
         "description": "Request body for POST /auth/login.\n\nAttributes:\n    email: User email address.\n    password: User password."
+      },
+      "AuthLogoutRequest": {
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "title": "AuthLogoutRequest",
+        "description": "Request body for POST /auth/logout.\n\nAttributes:\n    refresh_token: Refresh token to revoke. its access tokens stop working too."
+      },
+      "AuthMessageResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "AuthMessageResponse",
+        "description": "Acknowledgement for auth actions that return no session.\n\nAttributes:\n    message: Human-readable outcome."
       },
       "AuthRefreshRequest": {
         "properties": {
@@ -410,6 +562,21 @@
         ],
         "title": "AuthRefreshRequest",
         "description": "Request body for POST /auth/refresh.\n\nAttributes:\n    refresh_token: Cognito refresh token from a prior login/signup.\n    username: Cognito username (email) required when the app client has a secret."
+      },
+      "AuthResendConfirmationRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "AuthResendConfirmationRequest",
+        "description": "Request body for POST /auth/resend-confirmation.\n\nAttributes:\n    email: Email used at signup."
       },
       "AuthSessionResponse": {
         "properties": {
@@ -485,6 +652,35 @@
         ],
         "title": "AuthSignupRequest",
         "description": "Request body for POST /auth/signup.\n\nAttributes:\n    email: User email address.\n    password: User password.\n    username: Optional display name stored on the Cognito user."
+      },
+      "AuthSignupResponse": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "confirmation_required": {
+            "type": "boolean",
+            "title": "Confirmation Required"
+          },
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuthSessionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "confirmation_required"
+        ],
+        "title": "AuthSignupResponse",
+        "description": "Payload returned by signup.\n\nAttributes:\n    email: Address the account was created for.\n    confirmation_required: True when Cognito emailed a verification code and\n        the client must call /auth/confirm before logging in.\n    session: Session tokens, only when the account was confirmed at once\n        (local development against the emulator)."
       },
       "AuthUser": {
         "properties": {
@@ -599,28 +795,6 @@
         ],
         "title": "HealthResponse",
         "description": "Liveness payload for GET /health.\n\nAttributes:\n    status: Service status string."
-      },
-      "UserCreate": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id",
-            "description": "Cognito user UUID. Must match the authenticated `sub` claim."
-          }
-        },
-        "type": "object",
-        "required": [
-          "email",
-          "id"
-        ],
-        "title": "UserCreate",
-        "description": "Payload to create a user profile linked to a Cognito user.\n\nAttributes:\n    id: Cognito user UUID (`sub`).\n    email: User email address."
       },
       "UserRead": {
         "properties": {

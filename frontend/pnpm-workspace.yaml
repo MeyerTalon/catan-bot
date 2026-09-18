@@ -2,3 +2,9 @@
 allowBuilds:
   "@swc/core": true
   esbuild: true
+
+# shadcn/tailwind.css is all that is used from shadcn; its cli drags in a
+# postcss/nanoid pair that pnpm audit flags, so pin both past the advisories
+overrides:
+  postcss: ">=8.5.23"
+  nanoid: ">=3.3.18"

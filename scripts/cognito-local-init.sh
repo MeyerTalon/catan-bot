@@ -105,6 +105,7 @@ COGNITO_ENDPOINT_URL=http://localhost:${MOTO_HOST_PORT}
 COGNITO_JWKS_URL=http://localhost:${MOTO_HOST_PORT}/${pool_id}/.well-known/jwks.json
 AWS_ACCESS_KEY_ID=test
 AWS_SECRET_ACCESS_KEY=test
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 EOF
 
 # read by the db-seed service, which logs the dev user in once so the backend

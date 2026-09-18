@@ -6,8 +6,13 @@
 # trusts that environment via OIDC.
 # Migrations run inside the container on start; the runner never touches RDS.
 #
+# Image tags are immutable and named by commit: the job clones the latest task
+# definition revision (terraform's template: env, secrets, sizing), swaps the
+# image, registers it, and points the service at it.
+#
 # Environment variables (Settings → Environments → production → Variables):
-#   AWS_REGION, AWS_DEPLOY_ROLE_ARN, ECR_REPOSITORY, ECS_CLUSTER, ECS_SERVICE
+#   AWS_REGION, AWS_DEPLOY_ROLE_ARN, ECR_REPOSITORY, ECS_CLUSTER, ECS_SERVICE,
+#   ECS_TASK_FAMILY (the terraform `ecs_task_family` output)
 name: Deploy backend
 
 on:
@@ -27,26 +32,43 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v7
-      - uses: aws-actions/configure-aws-credentials@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
       - name: Build and push image
         env:
           REPO: ${{ vars.ECR_REPOSITORY }}
         run: |
           docker build --platform linux/amd64 -f backend/Dockerfile \
-            -t "$REPO:${GITHUB_SHA}" -t "$REPO:latest" .
+            -t "$REPO:${GITHUB_SHA}" .
           docker push "$REPO:${GITHUB_SHA}"
-          docker push "$REPO:latest"
+      - name: Register a task definition with this image
+        id: taskdef
+        env:
+          REPO: ${{ vars.ECR_REPOSITORY }}
+          FAMILY: ${{ vars.ECS_TASK_FAMILY }}
+        run: |
+          aws ecs describe-task-definition --task-definition "$FAMILY" \
+            --query taskDefinition --output json > current.json
+          jq --arg image "$REPO:${GITHUB_SHA}" '
+            .containerDefinitions[0].image = $image
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy)
+          ' current.json > next.json
+          arn=$(aws ecs register-task-definition --cli-input-json file://next.json \
+            --query taskDefinition.taskDefinitionArn --output text)
+          echo "arn=$arn" >> "$GITHUB_OUTPUT"
       - name: Roll the service
         run: |
           aws ecs update-service \
             --cluster "${{ vars.ECS_CLUSTER }}" \
             --service "${{ vars.ECS_SERVICE }}" \
-            --force-new-deployment >/dev/null
+            --task-definition "${{ steps.taskdef.outputs.arn }}" >/dev/null
       - name: Wait for the new task to be healthy
         run: |
           aws ecs wait services-stable \
@@ -57,5 +79,6 @@ jobs:
           {
             echo "## Backend deployed"
             echo "- image: \`${{ vars.ECR_REPOSITORY }}:${GITHUB_SHA}\`"
+            echo "- task definition: \`${{ steps.taskdef.outputs.arn }}\`"
             echo "- service: \`${{ vars.ECS_CLUSTER }}/${{ vars.ECS_SERVICE }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
