@@ -3,7 +3,7 @@
 # the image carries db/ (Alembic). Only the catan-backend workspace member is
 # installed.
 #   docker build -f backend/Dockerfile .
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /uvx /bin/
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN uv sync --frozen --no-dev --no-install-project --no-editable --package catan
 COPY backend/app ./backend/app
 RUN uv sync --frozen --no-dev --no-editable --package catan-backend
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 WORKDIR /app
 
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
