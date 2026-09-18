@@ -18,8 +18,3 @@ output "client_secret" {
   value       = aws_cognito_user_pool_client.this.client_secret
   sensitive   = true
 }
-
-output "backend_policy_json" {
-  description = "IAM policy granting the backend the admin calls it makes; attach to the ECS task role."
-  value       = data.aws_iam_policy_document.backend.json
-}

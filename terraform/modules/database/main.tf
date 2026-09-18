@@ -68,7 +68,10 @@ resource "aws_db_instance" "this" {
 }
 
 locals {
-  connection_url = "postgresql://${var.username}:${random_password.master.result}@${aws_db_instance.this.address}:${aws_db_instance.this.port}/${var.db_name}?sslmode=require"
+  # verify-full also checks the server certificate against the rds ca bundle,
+  # which the backend image ships; require only encrypts
+  ssl_query      = var.ssl_root_cert_path != "" ? "sslmode=verify-full&sslrootcert=${var.ssl_root_cert_path}" : "sslmode=require"
+  connection_url = "postgresql://${var.username}:${random_password.master.result}@${aws_db_instance.this.address}:${aws_db_instance.this.port}/${var.db_name}?${local.ssl_query}"
 }
 
 resource "aws_ssm_parameter" "database_url" {

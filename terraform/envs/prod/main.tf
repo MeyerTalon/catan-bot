@@ -40,8 +40,9 @@ module "database" {
   subnet_ids                 = module.network.public_subnet_ids
   allowed_security_group_ids = { backend = module.backend.security_group_id }
 
-  instance_class    = "db.t4g.micro"
-  allocated_storage = 20
+  instance_class     = "db.t4g.micro"
+  allocated_storage  = 20
+  ssl_root_cert_path = "/app/rds-global-bundle.pem" # shipped by backend/Dockerfile
   # free-plan accounts reject >1 day (FreeTierRestrictionError)
   backup_retention_days = 1
   deletion_protection   = true
@@ -80,8 +81,10 @@ module "backend" {
   desired_count    = 1
   use_fargate_spot = true
 
-  # only cloudfront may talk to the alb; the api is reached at ${frontend_url}/api
+  # only our cloudfront distribution may talk to the alb (ip prefix list plus
+  # the x-origin-verify secret); the api is reached at ${frontend_url}/api
   restrict_ingress_to_cloudfront = true
+  require_origin_verify_header   = true
 
   # pool/client ids are not secrets; only the db url is
   environment = {
@@ -90,19 +93,13 @@ module "backend" {
     COGNITO_REGION       = local.aws_region
     COGNITO_USER_POOL_ID = module.auth.user_pool_id
     COGNITO_CLIENT_ID    = module.auth.client_id
+    TRUSTED_PROXY_HOPS   = "2" # cloudfront, then the alb, append to x-forwarded-for
   }
 
   secrets = [
     { name = "DATABASE_URL", value_from = module.database.database_url_parameter_arn },
   ]
   parameter_arns = [module.database.database_url_parameter_arn]
-}
-
-# the backend confirms sign-ups itself, which is an admin call on the pool
-resource "aws_iam_role_policy" "backend_cognito" {
-  name   = "cognito"
-  role   = module.backend.task_role_name
-  policy = module.auth.backend_policy_json
 }
 
 # ---------------------------------------------------------------------------
@@ -116,9 +113,10 @@ module "frontend" {
   bucket_name   = "${local.name}-frontend-${data.aws_caller_identity.current.account_id}"
   force_destroy = false
 
-  enable_api_origin      = true
-  api_origin_domain_name = module.backend.alb_dns_name
-  api_path_prefix        = "/api"
+  enable_api_origin         = true
+  api_origin_domain_name    = module.backend.alb_dns_name
+  api_path_prefix           = "/api"
+  api_origin_custom_headers = module.backend.origin_verify_header
 }
 
 # ---------------------------------------------------------------------------
@@ -142,6 +140,7 @@ module "deploy_role" {
 
   ecr_repository_arns          = [module.backend.ecr_repository_arn]
   ecs_service_arns             = [module.backend.service_arn]
+  passable_role_arns           = [module.backend.execution_role_arn, module.backend.task_role_arn]
   s3_bucket_arns               = [module.frontend.bucket_arn]
   cloudfront_distribution_arns = [module.frontend.distribution_arn]
 }

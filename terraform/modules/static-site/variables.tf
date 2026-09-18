@@ -36,3 +36,16 @@ variable "api_path_prefix" {
     error_message = "api_path_prefix must look like /api (leading slash, no trailing slash)."
   }
 }
+
+variable "api_origin_custom_headers" {
+  description = "Headers CloudFront adds to every request it sends to the API origin (e.g. the backend's origin_verify_header). Ignored unless enable_api_origin is true."
+  type        = map(string)
+  default     = {}
+  sensitive   = true
+}
+
+variable "content_security_policy" {
+  description = "Content-Security-Policy sent with every site response. The default fits a self-contained SPA: same-origin scripts, styles (Tailwind injects inline styles), fonts, api calls, plus data: images for the favicon."
+  type        = string
+  default     = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+}

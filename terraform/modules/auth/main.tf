@@ -1,7 +1,8 @@
 # Cognito user pool + app client for the backend's email/password auth flow
-# (initiate_auth USER_PASSWORD_AUTH, sign_up, admin_confirm_sign_up,
-# REFRESH_TOKEN_AUTH). Email is the username; the backend confirms sign-ups
-# itself, so no verification email is sent.
+# (sign_up, confirm_sign_up, initiate_auth USER_PASSWORD_AUTH /
+# REFRESH_TOKEN_AUTH, revoke_token). Email is the username and is verified by
+# the code Cognito emails at sign-up. Every call the backend makes is a public
+# app-client call, so the task role needs no Cognito permissions.
 
 resource "aws_cognito_user_pool" "this" {
   name = var.name
@@ -58,7 +59,6 @@ resource "aws_cognito_user_pool_client" "this" {
   explicit_auth_flows = [
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
-    "ALLOW_USER_SRP_AUTH",
   ]
 
   prevent_user_existence_errors = "ENABLED"
@@ -72,16 +72,5 @@ resource "aws_cognito_user_pool_client" "this" {
     access_token  = "minutes"
     id_token      = "minutes"
     refresh_token = "days"
-  }
-}
-
-# what the backend's task role needs to call on this pool
-data "aws_iam_policy_document" "backend" {
-  statement {
-    actions = [
-      "cognito-idp:AdminConfirmSignUp",
-      "cognito-idp:AdminGetUser",
-    ]
-    resources = [aws_cognito_user_pool.this.arn]
   }
 }

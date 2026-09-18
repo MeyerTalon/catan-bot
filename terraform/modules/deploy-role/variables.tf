@@ -42,3 +42,9 @@ variable "cloudfront_distribution_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "passable_role_arns" {
+  description = "ECS execution/task role ARNs the deploy role may pass when registering a task definition."
+  type        = list(string)
+  default     = []
+}

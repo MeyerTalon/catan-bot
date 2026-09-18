@@ -68,6 +68,32 @@ data "aws_iam_policy_document" "deploy" {
     }
   }
 
+  # task definition apis are not resource-scoped; passrole is, and it is what
+  # stops this role from registering a task definition under some other role
+  dynamic "statement" {
+    for_each = length(var.ecs_service_arns) > 0 ? [1] : []
+    content {
+      sid       = "EcsTaskDefinition"
+      actions   = ["ecs:DescribeTaskDefinition", "ecs:RegisterTaskDefinition"]
+      resources = ["*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = length(var.passable_role_arns) > 0 ? [1] : []
+    content {
+      sid       = "PassTaskRoles"
+      actions   = ["iam:PassRole"]
+      resources = var.passable_role_arns
+
+      condition {
+        test     = "StringEquals"
+        variable = "iam:PassedToService"
+        values   = ["ecs-tasks.amazonaws.com"]
+      }
+    }
+  }
+
   dynamic "statement" {
     for_each = length(var.s3_bucket_arns) > 0 ? [1] : []
     content {
