@@ -1,3 +1,8 @@
+note to self: use small RL models (for fast inference), train N (large) in parallel, then bag them
+              alternative is one big RL model, but then slow inference -> no parallelizability (?) -> long inference times -> long(er)] train times :
+
+
+
 <h1 align="center">catan-bot</h1>
 
 <p align="center">
@@ -28,7 +33,7 @@
 | **Frontend** (`frontend/`) | React 18 · Vite · TypeScript · typed client generated from the backend's OpenAPI schema | S3 + CloudFront |
 | **Database** (`db/`) | Postgres 16, schema owned by Alembic migrations | RDS `db.t4g.micro` |
 | **Auth** | Amazon Cognito user pool, proxied through the API (sign-up, login, refresh) | Cognito |
-| **Bot** (`catan_bot/`) | Typer CLI that sends a `GameState` to `gpt-oss` via Ollama and gets a structured `ModelMoveResponse` back | your laptop |
+| **Game engine** (`game-engine/`) | Pure-Python Catan rules: `GameState`, `Action`s, and the `GameEngine` that applies them (boilerplate for now) | imported by the backend |
 | **Infra** (`terraform/`) | Terraform ≥ 1.10, reusable modules + per-env stacks, remote S3 state | AWS, ≈ $44/month idle |
 
 ```
@@ -100,15 +105,9 @@ The backend's `COGNITO_ENDPOINT_URL` / `COGNITO_JWKS_URL` settings are what poin
 
 `mise tasks` lists them all.
 
-## Running the bot
+## Game engine
 
-Needs [Ollama](https://ollama.com/) running locally with the `gpt-oss` model pulled (`ollama pull gpt-oss`, API at `http://localhost:11434`).
-
-```bash
-mise run bot:choose-move
-```
-
-Builds a small sample `GameState`, sends it to the model, and prints the model's reasoning and chosen action as a validated `ModelMoveResponse`. The state and response models live in `catan_bot/models.py`.
+`game-engine/` holds the rules as a pure-Python package with no I/O; see its [README](game-engine/README.md). `mise run ge:check` runs ruff, mypy, and pytest for it.
 
 ## Repository layout
 
@@ -117,7 +116,7 @@ backend/        FastAPI app (app/), tests/, scripts/, Dockerfile — a member of
 frontend/       React + Vite app; src/api/ is generated from the backend's OpenAPI schema
 db/             Alembic migrations — the source of truth for the Postgres schema
 docker-compose.yml  local end-to-end stack mirroring prod (writes gitignored .generated/)
-catan_bot/      the LLM bot CLI (root package of the uv workspace)
+game-engine/    Catan rules engine (game_engine/), tests/ — a member of the root uv workspace
 terraform/      bootstrap/ (state bucket, OIDC, budget) · modules/ · envs/prod/ · ARCHITECTURE.md · README.md
 docs/           MkDocs site (GitHub Pages); pages include the READMEs next to the code + a Redoc API reference
 .github/        ci.yml (checks) · docs.yml (Pages) · deploy-backend / deploy-frontend / deploy / terraform (manual)
@@ -126,7 +125,7 @@ mise.toml       pinned tool versions and every `mise run` task
 scripts/        setup.sh (one-time local bootstrap) · cognito-local-init.sh (Cognito pool/client in moto for the stack)
 ```
 
-Each area has its own README: [backend](backend/README.md) · [frontend](frontend/README.md) · [db](db/README.md) · [terraform](terraform/README.md).
+Each area has its own README: [backend](backend/README.md) · [game-engine](game-engine/README.md) · [frontend](frontend/README.md) · [db](db/README.md) · [terraform](terraform/README.md).
 
 ## Deploying
 

@@ -4,7 +4,7 @@
 #   mise run docs:serve   # live preview at http://127.0.0.1:8001
 #   mise run docs:build   # strict build into site/
 site_name: catan-bot
-site_description: Full-stack Catan app with an LLM move-selection bot
+site_description: Full-stack Catan app with a Python rules engine
 repo_url: https://github.com/MeyerTalon/catan-bot
 repo_name: MeyerTalon/catan-bot
 edit_uri: ""
