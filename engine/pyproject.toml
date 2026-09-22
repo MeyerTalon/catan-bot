@@ -1,5 +1,5 @@
 [project]
-name = "catan-game-engine"
+name = "catan-engine"
 version = "0.1.0"
 description = "Rules engine for Catan: board, game state, and legal-move application."
 readme = "README.md"
@@ -12,8 +12,11 @@ dependencies = [
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-include = ["game_engine*"]
+[tool.setuptools]
+packages = ["engine"]
+
+[tool.setuptools.package-dir]
+engine = "src"
 
 [dependency-groups]
 dev = [
@@ -27,12 +30,11 @@ package = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 88
-src = ["game_engine", "tests"]
+src = ["src", "tests"]
 extend-exclude = [".venv"]
 
 [tool.ruff.lint]
@@ -44,7 +46,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["game_engine"]
+known-first-party = ["engine"]
 
 [tool.ruff.format]
 quote-style = "single"
@@ -52,8 +54,7 @@ docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.11"
-packages = ["game_engine"]
-mypy_path = "."
+files = ["src"]
 warn_unused_ignores = true
 warn_redundant_casts = true
 warn_return_any = true

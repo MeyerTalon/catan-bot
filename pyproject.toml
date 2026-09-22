@@ -1,5 +1,5 @@
 # virtual uv workspace root: one uv.lock and one .venv for every member.
-# the members (backend/, game-engine/) own the actual packages.
+# the members (backend/, engine/) own the actual packages.
 [project]
 name = "catan-bot"
 version = "0.1.0"
@@ -7,7 +7,7 @@ description = "Full-stack Catan app with a rules engine."
 requires-python = ">=3.11"
 
 [tool.uv.workspace]
-members = ["backend", "game-engine"]
+members = ["backend", "engine"]
 
 [tool.uv]
 package = false

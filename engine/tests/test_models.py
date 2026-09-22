@@ -1,6 +1,6 @@
 """game state serialisation."""
 
-from game_engine.models import Board, GameState, HexTile, Player, Resource
+from engine.models import Board, GameState, HexTile, Player, Resource
 
 
 def test_game_state_round_trips_through_json() -> None:

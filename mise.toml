@@ -19,12 +19,12 @@ _.python.venv = ".venv"
 # --- install ---
 
 [tasks.install]
-description = "Install backend, game-engine, and frontend dependencies"
+description = "Install backend, engine, and frontend dependencies"
 depends = ["sync", "fe:install"]
 
-# one uv workspace (root pyproject.toml + backend and game-engine members): one uv.lock, one .venv
+# one uv workspace (root pyproject.toml + backend and engine members): one uv.lock, one .venv
 [tasks.sync]
-description = "Sync the shared uv env (backend + game-engine, all groups) from the lockfile"
+description = "Sync the shared uv env (backend + engine, all groups) from the lockfile"
 run = "uv sync --frozen --all-packages --all-groups"
 
 [tasks."fe:install"]
@@ -162,31 +162,31 @@ run = "pnpm audit --prod --audit-level=high"
 description = "oxfmt --check, oxlint, tsc, and pnpm audit"
 depends = ["fe:format-check", "fe:lint", "fe:typecheck", "fe:audit"]
 
-# --- game engine ---
+# --- engine ---
 
 [tasks."ge:format"]
-description = "Format game-engine Python with ruff"
-dir = "game-engine"
-run = "uv run ruff format game_engine tests"
+description = "Format engine Python with ruff"
+dir = "engine"
+run = "uv run ruff format src tests"
 
 [tasks."ge:format-check"]
-description = "Check game-engine Python formatting"
-dir = "game-engine"
-run = "uv run ruff format --check game_engine tests"
+description = "Check engine Python formatting"
+dir = "engine"
+run = "uv run ruff format --check src tests"
 
 [tasks."ge:lint"]
-description = "Lint game-engine Python with ruff"
-dir = "game-engine"
-run = "uv run ruff check game_engine tests"
+description = "Lint engine Python with ruff"
+dir = "engine"
+run = "uv run ruff check src tests"
 
 [tasks."ge:typecheck"]
-description = "Type-check game-engine Python with mypy"
-dir = "game-engine"
+description = "Type-check engine Python with mypy"
+dir = "engine"
 run = "uv run mypy"
 
 [tasks."ge:test"]
-description = "Run game-engine unit tests"
-dir = "game-engine"
+description = "Run engine unit tests"
+dir = "engine"
 run = "uv run pytest"
 
 [tasks."ge:check"]

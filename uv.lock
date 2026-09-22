@@ -10,7 +10,7 @@ resolution-markers = [
 members = [
     "catan-backend",
     "catan-bot",
-    "catan-game-engine",
+    "catan-engine",
 ]
 
 [[package]]
@@ -278,9 +278,9 @@ docs = [
 ]
 
 [[package]]
-name = "catan-game-engine"
+name = "catan-engine"
 version = "0.1.0"
-source = { editable = "game-engine" }
+source = { editable = "engine" }
 dependencies = [
     { name = "pydantic" },
 ]

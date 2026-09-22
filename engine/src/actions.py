@@ -1,6 +1,6 @@
 """actions a player can submit to the engine.
 
-each action carries a literal `type` so the union can be parsed from json
+each action carries a literal `type` s≤o the union can be parsed from json
 without knowing the concrete class up front.
 """
 

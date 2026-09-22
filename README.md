@@ -33,7 +33,7 @@ note to self: use small RL models (for fast inference), train N (large) in paral
 | **Frontend** (`frontend/`) | React 18 · Vite · TypeScript · typed client generated from the backend's OpenAPI schema | S3 + CloudFront |
 | **Database** (`db/`) | Postgres 16, schema owned by Alembic migrations | RDS `db.t4g.micro` |
 | **Auth** | Amazon Cognito user pool, proxied through the API (sign-up, login, refresh) | Cognito |
-| **Game engine** (`game-engine/`) | Pure-Python Catan rules: `GameState`, `Action`s, and the `GameEngine` that applies them (boilerplate for now) | imported by the backend |
+| **Game engine** (`engine/`) | Pure-Python Catan rules: `GameState`, `Action`s, and the `GameEngine` that applies them (boilerplate for now) | imported by the backend |
 | **Infra** (`terraform/`) | Terraform ≥ 1.10, reusable modules + per-env stacks, remote S3 state | AWS, ≈ $44/month idle |
 
 ```
@@ -107,7 +107,7 @@ The backend's `COGNITO_ENDPOINT_URL` / `COGNITO_JWKS_URL` settings are what poin
 
 ## Game engine
 
-`game-engine/` holds the rules as a pure-Python package with no I/O; see its [README](game-engine/README.md). `mise run ge:check` runs ruff, mypy, and pytest for it.
+`engine/` holds the rules as a pure-Python package with no I/O; see its [README](engine/README.md). `mise run ge:check` runs ruff, mypy, and pytest for it.
 
 ## Repository layout
 
@@ -116,7 +116,7 @@ backend/        FastAPI app (app/), tests/, scripts/, Dockerfile — a member of
 frontend/       React + Vite app; src/api/ is generated from the backend's OpenAPI schema
 db/             Alembic migrations — the source of truth for the Postgres schema
 docker-compose.yml  local end-to-end stack mirroring prod (writes gitignored .generated/)
-game-engine/    Catan rules engine (game_engine/), tests/ — a member of the root uv workspace
+engine/         Catan rules engine (src/), tests/ — a member of the root uv workspace
 terraform/      bootstrap/ (state bucket, OIDC, budget) · modules/ · envs/prod/ · ARCHITECTURE.md · README.md
 docs/           MkDocs site (GitHub Pages); pages include the READMEs next to the code + a Redoc API reference
 .github/        ci.yml (checks) · docs.yml (Pages) · deploy-backend / deploy-frontend / deploy / terraform (manual)
@@ -125,7 +125,7 @@ mise.toml       pinned tool versions and every `mise run` task
 scripts/        setup.sh (one-time local bootstrap) · cognito-local-init.sh (Cognito pool/client in moto for the stack)
 ```
 
-Each area has its own README: [backend](backend/README.md) · [game-engine](game-engine/README.md) · [frontend](frontend/README.md) · [db](db/README.md) · [terraform](terraform/README.md).
+Each area has its own README: [backend](backend/README.md) · [engine](engine/README.md) · [frontend](frontend/README.md) · [db](db/README.md) · [terraform](terraform/README.md).
 
 ## Deploying
 

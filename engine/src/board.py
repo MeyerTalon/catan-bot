@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from game_engine.models import Board
+from .models import Board
 
 
 def standard_board(seed: int | None = None) -> Board:

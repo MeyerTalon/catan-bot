@@ -4,8 +4,8 @@
 applies `Action`s to it. nothing here talks to a network, database, or model.
 """
 
-from game_engine.actions import Action
-from game_engine.engine import GameEngine, IllegalActionError
-from game_engine.models import GameState
+from .actions import Action
+from .engine import GameEngine, IllegalActionError
+from .models import GameState
 
 __all__ = ['Action', 'GameEngine', 'GameState', 'IllegalActionError']

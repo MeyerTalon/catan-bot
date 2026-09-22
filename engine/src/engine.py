@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import List
 
-from game_engine.actions import Action
-from game_engine.board import standard_board
-from game_engine.models import GameState, Player
+from .actions import Action
+from .board import standard_board
+from .models import GameState, Player
 
 
 class IllegalActionError(Exception):
