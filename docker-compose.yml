@@ -32,7 +32,7 @@ services:
       POSTGRES_USER: catan
       POSTGRES_PASSWORD: catan
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U catan -d catan"]
       interval: 5s
@@ -64,7 +64,7 @@ services:
       AWS_DEFAULT_REGION: us-west-2
       AWS_ENDPOINT_URL: http://moto:5000
       MOTO_HOST_PORT: ${MOTO_PORT:-5001}
-      POSTGRES_HOST_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_HOST_PORT: ${POSTGRES_PORT:-5433}
     volumes:
       - ./scripts/cognito-local-init.sh:/cognito-local-init.sh:ro
       - ./.generated:/out

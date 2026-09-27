@@ -1,9 +1,10 @@
 # Production environment: composes the shared modules. Every sizing decision
 # lives in this locals block so the diff between environments is obvious.
 #
-# Idle cost with these values is about $44/month (ALB + 3 public IPv4s ≈ $27,
-# db.t4g.micro ≈ $14, one Fargate Spot task ≈ $3, everything else ≈ $0). See
-# ../../ARCHITECTURE.md for the per-resource breakdown.
+# Idle cost with these values is about $51/month (ALB + 4 public IPv4s ≈ $31,
+# db.t4g.micro ≈ $14, one Fargate Spot task ≈ $3, t4g.nano bastion ≈ $3,
+# everything else ≈ $0). See ../../ARCHITECTURE.md for the per-resource
+# breakdown.
 
 locals {
   project     = "catan"
@@ -35,10 +36,13 @@ module "network" {
 module "database" {
   source = "../../modules/database"
 
-  name                       = local.name
-  vpc_id                     = module.network.vpc_id
-  subnet_ids                 = module.network.public_subnet_ids
-  allowed_security_group_ids = { backend = module.backend.security_group_id }
+  name       = local.name
+  vpc_id     = module.network.vpc_id
+  subnet_ids = module.network.public_subnet_ids
+  allowed_security_group_ids = {
+    backend = module.backend.security_group_id
+    bastion = module.bastion.security_group_id
+  }
 
   instance_class     = "db.t4g.micro"
   allocated_storage  = 20
@@ -47,6 +51,21 @@ module "database" {
   backup_retention_days = 1
   deletion_protection   = true
   skip_final_snapshot   = false
+}
+
+# ---------------------------------------------------------------------------
+# bastion (ssm port forward to rds for datagrip / psql; `mise run db:tunnel`)
+# ---------------------------------------------------------------------------
+
+module "bastion" {
+  source = "../../modules/bastion"
+
+  name      = local.name
+  vpc_id    = module.network.vpc_id
+  vpc_cidr  = module.network.vpc_cidr
+  subnet_id = module.network.public_subnet_ids[0]
+
+  instance_type = "t4g.nano"
 }
 
 # ---------------------------------------------------------------------------

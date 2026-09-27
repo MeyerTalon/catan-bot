@@ -48,6 +48,11 @@ output "cloudfront_distribution_id" {
   value       = module.frontend.distribution_id
 }
 
+output "bastion_instance_id" {
+  description = "Bastion EC2 instance (mise run db:tunnel looks it up by tag; this is for aws ssm start-session by hand)."
+  value       = module.bastion.instance_id
+}
+
 output "database_url" {
   description = "Postgres URL (sensitive). Same value the task receives as DATABASE_URL."
   value       = module.database.connection_url

@@ -6,7 +6,7 @@ Full-stack Catan app plus an LLM move-selection bot. Top-level pieces:
 - `frontend/` — React (Vite + TypeScript) UI; talks to the backend through the generated OpenAPI client in `frontend/src/api/`. Deployed to S3 + CloudFront.
 - `db/` — Alembic migrations; source of truth for the Postgres schema (`db/README.md`).
 - `docs/` + `mkdocs.yml` — MkDocs site for GitHub Pages. Pages are `include-markdown` wrappers around the READMEs, `terraform/ARCHITECTURE.md`, and this file, plus a Redoc page over `frontend/src/api/openapi.json`; edit the source files, not `docs/`. `mise run docs:serve` to preview, `docs:build` (strict) runs in CI
-- `terraform/` — AWS IaC: `bootstrap/` (one-time per account: state bucket, GitHub OIDC, terraform-apply role, budget), `modules/` (network, database, auth, backend-service, static-site, deploy-role), `envs/<env>/` (composes modules; remote S3 state). Diagram + cost: `terraform/ARCHITECTURE.md`; runbook: `terraform/README.md`.
+- `terraform/` — AWS IaC: `bootstrap/` (one-time per account: state bucket, GitHub OIDC, terraform-apply role, budget), `modules/` (network, database, bastion, auth, backend-service, static-site, deploy-role), `envs/<env>/` (composes modules; remote S3 state). Diagram + cost: `terraform/ARCHITECTURE.md`; runbook: `terraform/README.md`.
 - `engine/` — pure-Python Catan rules engine (`engine` package): serialisable `GameState`, `Action` types, and a `GameEngine` that validates and applies them. No I/O; the backend stores `GameState` as JSON. Currently boilerplate — the rules are stubs.
 - `docker-compose.yml` — local end-to-end stack that mirrors prod: `postgres` (16), `moto` (Cognito emulator, `cognito-idp`), `cognito-local-init` (`scripts/cognito-local-init.sh`: creates the same pool/app client as `terraform/modules/auth` plus the dev user `admin@example.com` / `Admin123`, writes ids to gitignored `.generated/`), `db-seed` (logs that user in once through the backend so its `users` row exists on every start), `backend` (the unchanged `backend/Dockerfile`), and `edge` (`frontend/Dockerfile` + `frontend/nginx.conf`: static build, `/api/*` proxied to the backend with the prefix stripped, SPA fallback — the CloudFront behaviour). `mise run dev:up|logs|down`.
 - `mise.toml` — pinned tool versions and `mise run` tasks. Commit `mise.lock`.
@@ -65,11 +65,14 @@ mise run tf:lint                 # tflint
 ENV=prod mise run tf:plan        # writes envs/prod/tfplan
 ENV=prod mise run tf:apply       # applies that plan — only when the user asks
 mise run tf:bootstrap-apply      # one-time account foundation, local state
+
+# prod database from your machine (SSM port forward through the bastion; needs the Session Manager plugin)
+mise run db:tunnel               # localhost:5432 → RDS; Ctrl-C to close
 ```
 
 Equivalent underlying commands (when not using mise tasks): `uv run …` from `backend/` or `engine/`, `pnpm run …` from `frontend/`, `make …` from `terraform/`. `mise tasks` lists every task.
 
-Backend listens at `http://localhost:8000` (docs: `http://localhost:8000/docs`). Frontend Vite server is port `5173`. The compose stack serves the app at `http://localhost:8080` (API at `/api`), backend `8000`, Postgres `5432`, moto `5001` (`EDGE_PORT`, `BACKEND_PORT`, `POSTGRES_PORT`, `MOTO_PORT` override them).
+Backend listens at `http://localhost:8000` (docs: `http://localhost:8000/docs`). Frontend Vite server is port `5173`. The compose stack serves the app at `http://localhost:8080` (API at `/api`), backend `8000`, Postgres `5433` (`5432` is reserved for the prod RDS tunnel), moto `5001` (`EDGE_PORT`, `BACKEND_PORT`, `POSTGRES_PORT`, `MOTO_PORT` override them).
 
 ## Git workflow
 
