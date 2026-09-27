@@ -33,7 +33,7 @@ Single environment, single AZ where AWS allows it, no autoscaling, no NAT, no pr
 
 Request path: browser → CloudFront → (static from S3 | `/api/*` to ALB over HTTP inside AWS) → task → RDS. Auth calls go task → Cognito over the public AWS API. Migrations run in the container entrypoint (`alembic upgrade head` then `uvicorn`), so nothing outside the VPC needs a DB route.
 
-The only way in from a laptop is the bastion: a `t4g.nano` in AZ-a with no inbound rules and no key pair. Its SSM agent dials out over the instance's public IP; `mise run db:tunnel` opens a Session Manager port forward through it to RDS for DataGrip / `psql` (see the [Terraform README](README.md#database-access-from-your-machine)).
+The only way in from a laptop is the bastion: a `t4g.micro` in AZ-a with no inbound rules and no key pair. Its SSM agent dials out over the instance's public IP; `mise run db:tunnel` opens a Session Manager port forward through it to RDS for DataGrip / `psql` (see the [Terraform README](README.md#database-access-from-your-machine)).
 
 ## Resources and monthly cost
 
@@ -54,17 +54,17 @@ The only way in from a laptop is the bastion: a `t4g.nano` in AZ-a with no inbou
 | DB | 20 GB gp3 storage | | 2.30 |
 | DB | automated backups, 1 day | | 0.00 (free-plan max; 7 days is rejected) |
 | DB | DB subnet group, SG, default KMS key | | 0.00 |
-| DB access | EC2 `t4g.nano` bastion (+ IAM role, SG with no ingress) | SSM Session Manager port forward to RDS | 3.07 |
+| DB access | EC2 `t4g.micro` bastion (+ IAM role, SG with no ingress) | SSM Session Manager port forward to RDS; cheapest free-tier-eligible type | 6.13 |
 | DB access | 1 × public IPv4 on the bastion | agent reaches SSM without a NAT or 3 × VPC endpoints ($21) | 3.65 |
 | DB access | 8 GB gp3 root volume | | 0.64 |
 | Auth | Cognito user pool + app client | ≤10 000 MAU | 0.00 |
 | Network | VPC, 2 public subnets, IGW, route table, SGs | | 0.00 |
 | Bootstrap | S3 state bucket, GitHub OIDC provider, 2 IAM roles, AWS Budget alert | | ~0.00 |
-| | **Total** | | **≈ 51** |
+| | **Total** | | **≈ 54** |
 
-- ≈ **$39** with RDS stopped between sessions; ≈ **$44** without the bastion; ≈ **$28** if the ALB were replaced by API Gateway + VPC link (rejected for simplicity).
-- Fixed floor regardless of traffic: ALB + IPv4 ≈ $27. RDS ≈ $14. Bastion ≈ $7. Everything else rounds to zero.
-- $200 new-account credits cover ≈ 4 months. After credits, only CloudFront, S3, Cognito, Logs stay free.
+- ≈ **$42** with RDS stopped between sessions; ≈ **$44** without the bastion; ≈ **$31** if the ALB were replaced by API Gateway + VPC link (rejected for simplicity).
+- Fixed floor regardless of traffic: ALB + IPv4 ≈ $27. RDS ≈ $14. Bastion ≈ $10. Everything else rounds to zero.
+- $200 new-account credits cover ≈ 3.5 months. After credits, only CloudFront, S3, Cognito, Logs stay free.
 
 ## Not included, on purpose
 

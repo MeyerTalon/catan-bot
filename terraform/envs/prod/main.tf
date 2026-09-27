@@ -1,8 +1,8 @@
 # Production environment: composes the shared modules. Every sizing decision
 # lives in this locals block so the diff between environments is obvious.
 #
-# Idle cost with these values is about $51/month (ALB + 4 public IPv4s ≈ $31,
-# db.t4g.micro ≈ $14, one Fargate Spot task ≈ $3, t4g.nano bastion ≈ $3,
+# Idle cost with these values is about $54/month (ALB + 4 public IPv4s ≈ $31,
+# db.t4g.micro ≈ $14, one Fargate Spot task ≈ $3, t4g.micro bastion ≈ $6,
 # everything else ≈ $0). See ../../ARCHITECTURE.md for the per-resource
 # breakdown.
 
@@ -65,7 +65,9 @@ module "bastion" {
   vpc_cidr  = module.network.vpc_cidr
   subnet_id = module.network.public_subnet_ids[0]
 
-  instance_type = "t4g.nano"
+  # free-plan accounts may only launch free-tier-eligible types, which rules
+  # out the cheaper t4g.nano (InvalidParameterCombination on RunInstances)
+  instance_type = "t4g.micro"
 }
 
 # ---------------------------------------------------------------------------
