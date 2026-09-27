@@ -4,8 +4,11 @@
 # the instance's public IP, which costs $3.65/month against $21 for the three
 # SSM VPC endpoints.
 
-data "aws_ssm_parameter" "al2023_arm64" {
-  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64"
+# x86_64 rather than arm64: free-plan accounts refuse to launch Graviton
+# (t4g.*) with InvalidParameterCombination even though describe-instance-types
+# reports them free-tier-eligible, so the instance type has to be t3.micro
+data "aws_ssm_parameter" "al2023" {
+  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
 # ---------------------------------------------------------------------------
@@ -78,7 +81,7 @@ resource "aws_vpc_security_group_egress_rule" "postgres" {
 # ---------------------------------------------------------------------------
 
 resource "aws_instance" "this" {
-  ami                         = data.aws_ssm_parameter.al2023_arm64.insecure_value
+  ami                         = data.aws_ssm_parameter.al2023.insecure_value
   instance_type               = var.instance_type
   subnet_id                   = var.subnet_id
   vpc_security_group_ids      = [aws_security_group.this.id]
