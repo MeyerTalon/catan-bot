@@ -71,7 +71,7 @@ browser ─▶ edge (nginx) ─┬─ /       ─▶ frontend/dist (pnpm build)
 |---|---|
 | CloudFront: S3 static site, `/api/*` → ALB with the prefix stripped, SPA fallback | `edge` — nginx built by `frontend/Dockerfile` with `frontend/nginx.conf`, http://localhost:8080 |
 | ECS task from `backend/Dockerfile`, Alembic on start, `/health` target-group checks | `backend` — the same image and command; also http://localhost:8000 (docs at `/docs`) |
-| RDS Postgres 16 | `postgres` — `localhost:5432`, user/db `catan` |
+| RDS Postgres 16 | `postgres` — `localhost:5433`, user/db `catan` (`5432` is left free for the prod tunnel, `mise run db:tunnel`) |
 | Cognito user pool + app client (`terraform/modules/auth`) | `moto` — [moto](https://docs.getmoto.org/) `cognito-idp` on http://localhost:5001; `cognito-local-init` (`scripts/cognito-local-init.sh`) creates the same pool and client plus the dev user, writes their ids to `.generated/`, and `db-seed` logs the dev user in once so its `users` row exists |
 
 Log in at http://localhost:8080 as the seeded dev user **`admin@example.com` / `Admin123`** (created in moto and in Postgres on every start), or sign up with any email and a prod-policy password (8+ characters, upper, lower, digit). `mise run dev:logs` follows logs; `mise run dev:down` stops the stack **and deletes its state** — moto keeps users in memory, so Postgres is reset with it rather than keeping rows for identities that no longer exist. Host ports are overridable with `EDGE_PORT`, `BACKEND_PORT`, `POSTGRES_PORT`, and `MOTO_PORT` (5001 by default because macOS AirPlay listens on 5000).

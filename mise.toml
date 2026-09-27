@@ -94,7 +94,7 @@ docker compose up -d --build --wait
 echo "app      http://localhost:${EDGE_PORT:-8080}"
 echo "api      http://localhost:${EDGE_PORT:-8080}/api  (direct: http://localhost:${BACKEND_PORT:-8000}/docs)"
 echo "moto     http://localhost:${MOTO_PORT:-5001}/moto-api/"
-echo "postgres postgresql://catan:catan@localhost:${POSTGRES_PORT:-5432}/catan"
+echo "postgres postgresql://catan:catan@localhost:${POSTGRES_PORT:-5433}/catan"
 """
 
 [tasks."dev:down"]
@@ -229,6 +229,30 @@ run = "make apply ENV=${ENV:-prod}"
 description = "Apply the one-time bootstrap stack (only when explicitly asked)"
 dir = "terraform"
 run = "make bootstrap-apply"
+
+# --- prod database (ssm port forward through the bastion; see terraform/README.md) ---
+
+[tasks."db:tunnel"]
+description = "Forward localhost:5432 to the prod RDS through the bastion via SSM Session Manager (Ctrl-C to close)"
+run = """
+set -eu
+: "${AWS_REGION:=us-west-2}"; export AWS_REGION
+name="${DB_TUNNEL_NAME:-catan-prod}"
+port="${DB_TUNNEL_PORT:-5432}"
+instance_id="$(aws ec2 describe-instances \
+  --filters "Name=tag:Name,Values=${name}-bastion" "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].InstanceId | [0]' --output text)"
+if [ -z "$instance_id" ] || [ "$instance_id" = "None" ]; then
+  echo "no running ${name}-bastion instance (not applied yet, or still booting?)" >&2
+  exit 1
+fi
+rds_host="$(aws rds describe-db-instances --db-instance-identifier "${name}-postgres" \
+  --query 'DBInstances[0].Endpoint.Address' --output text)"
+echo "postgresql://catan@localhost:${port}/catan  ->  ${rds_host}:5432  via ${instance_id}"
+exec aws ssm start-session --target "$instance_id" \
+  --document-name AWS-StartPortForwardingSessionToRemoteHost \
+  --parameters "host=${rds_host},portNumber=5432,localPortNumber=${port}"
+"""
 
 # --- meta ---
 
