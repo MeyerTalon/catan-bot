@@ -10,7 +10,7 @@ terraform/
 ├── modules/          reusable building blocks, no environment knowledge
 │   ├── network/      VPC, 2 public subnets, IGW
 │   ├── database/     RDS Postgres (single-AZ, private) + SSM parameter with DATABASE_URL
-│   ├── bastion/      t4g.micro reachable only through SSM Session Manager; port-forward path to RDS
+│   ├── bastion/      t4g.nano reachable only through SSM Session Manager; port-forward path to RDS
 │   ├── auth/         Cognito user pool + app client
 │   ├── backend-service/  ECR, ECS Fargate (1 task), ALB, IAM, logs
 │   ├── static-site/  S3 + CloudFront (OAC, SPA fallback, /api/* → ALB)
@@ -142,7 +142,7 @@ The deploy role can push images, roll the service, and sync the frontend — not
 
 ## Database access from your machine
 
-RDS has no public IP and its security group admits only the backend task and the bastion. The bastion (`modules/bastion`) is a `t4g.micro` with **no inbound rules and no key pair**: its SSM agent dials out to Session Manager, and your AWS credentials authorise a port forward through it. Nothing in the config references your IP, so there is nothing to update when it changes; every session is logged in CloudTrail under your IAM principal.
+RDS has no public IP and its security group admits only the backend task and the bastion. The bastion (`modules/bastion`) is a `t4g.nano` with **no inbound rules and no key pair**: its SSM agent dials out to Session Manager, and your AWS credentials authorise a port forward through it. Nothing in the config references your IP, so there is nothing to update when it changes; every session is logged in CloudTrail under your IAM principal.
 
 ```bash
 mise run db:tunnel        # localhost:5432 → RDS; leave it running, Ctrl-C to close
