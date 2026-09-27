@@ -24,12 +24,12 @@ variable "subnet_id" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance class; must be Graviton (arm64) to match the AMI. t4g.nano (~$3/month) is plenty for a port forward."
+  description = "EC2 instance class; must be Graviton (arm64) to match the AMI. t4g.micro (~$6/month) is the cheapest free-tier-eligible one; a port forward needs nothing more."
   type        = string
-  default     = "t4g.nano"
+  default     = "t4g.micro"
 
   validation {
     condition     = can(regex("^[a-z0-9]+g[a-z]*\\.", var.instance_type))
-    error_message = "instance_type must be an arm64 (Graviton) class such as t4g.nano; the AMI is arm64."
+    error_message = "instance_type must be an arm64 (Graviton) class such as t4g.micro; the AMI is arm64."
   }
 }
