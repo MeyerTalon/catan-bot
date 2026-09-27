@@ -216,8 +216,28 @@ def _user_from_tokens(access_token: str, id_token: str) -> AuthUser:
     )
 
 
+def _display_name(auth_user: AuthUser) -> str | None:
+    """Pick the display name to store for a Cognito identity.
+
+    the token falls back to the Cognito username, which is the email here; an
+    email must not become a name other players see, so that case yields None.
+
+    Args:
+        auth_user: Identity from Cognito tokens.
+
+    Returns:
+        The chosen name trimmed to fit the column, or None.
+    """
+    name = (auth_user.username or '').strip()
+    if not name or name == auth_user.email or '@' in name:
+        return None
+    return name[:64]
+
+
 def _ensure_user(db: Session, auth_user: AuthUser) -> User:
     """Create a local user row for the Cognito identity if it does not exist.
+
+    an existing row picks up a changed display name.
 
     Args:
         db: Database session.
@@ -231,8 +251,11 @@ def _ensure_user(db: Session, auth_user: AuthUser) -> User:
             id. silently adopting that row would let its owner be locked out, so
             the mismatch is surfaced instead.
     """
+    username = _display_name(auth_user)
     existing = user_crud.get(db, auth_user.id)
     if existing:
+        if username and existing.username != username:
+            existing.username = username
         return existing
     email = auth_user.email or f'{auth_user.id}@users.invalid'
     if user_crud.get_by_email(db, email):
@@ -241,7 +264,9 @@ def _ensure_user(db: Session, auth_user: AuthUser) -> User:
             status_code=status.HTTP_409_CONFLICT,
             detail='This account is in conflict with an existing profile. Contact support.',
         )
-    return user_crud.create(db, id=uuid.UUID(auth_user.id), email=email)
+    return user_crud.create(
+        db, id=uuid.UUID(auth_user.id), email=email, username=username
+    )
 
 
 def _session_from_auth_result(

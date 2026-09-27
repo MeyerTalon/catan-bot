@@ -12,7 +12,14 @@ from app.schemas.auth import (
     AuthSignupResponse,
     AuthUser,
 )
-from app.schemas.game import GameSessionBase, GameSessionCreate, GameSessionRead
+from app.schemas.game import (
+    GameActionRequest,
+    GameCreate,
+    GameDetail,
+    GameList,
+    GameSeat,
+    GameSummary,
+)
 from app.schemas.response import HealthResponse
 from app.schemas.user import UserBase, UserRead
 
@@ -27,9 +34,12 @@ __all__ = [
     'AuthSignupRequest',
     'AuthSignupResponse',
     'AuthUser',
-    'GameSessionBase',
-    'GameSessionCreate',
-    'GameSessionRead',
+    'GameActionRequest',
+    'GameCreate',
+    'GameDetail',
+    'GameList',
+    'GameSeat',
+    'GameSummary',
     'HealthResponse',
     'UserBase',
     'UserRead',

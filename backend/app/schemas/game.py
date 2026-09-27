@@ -1,73 +1,122 @@
-"""Game session API schemas."""
+"""Game lobby and play API schemas.
+
+the in-game view and action types come straight from the rules engine, so the
+OpenAPI schema (and the generated frontend types) always match what it accepts.
+"""
 
 from __future__ import annotations
 
-import json
-import uuid
 from datetime import datetime
-from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from engine import MAX_PLAYERS, MIN_PLAYERS, Action, GameView
+from pydantic import BaseModel, Field, model_validator
 
-# generous for a serialized board; keeps a single request from filling the table
-MAX_STATE_BYTES = 64 * 1024
+from app.models.game import GameStatus
 
 
-class GameSessionBase(BaseModel):
-    """Shared game session fields (state).
+class GameCreate(BaseModel):
+    """Request body for POST /games.
 
     Attributes:
-        state: Serialized Catan game state as dictionary.
+        max_players: Seats at the table, including the host and bots.
+        bots: Seats to fill with random bots straight away.
     """
 
-    state: dict[str, Any] = Field(
-        default_factory=dict,
-        description='Serialized Catan game state.',
-    )
+    max_players: int = Field(default=4, ge=MIN_PLAYERS, le=MAX_PLAYERS)
+    bots: int = Field(default=0, ge=0, le=MAX_PLAYERS - 1)
 
-    @field_validator('state')
-    @classmethod
-    def _state_fits(cls, value: dict[str, Any]) -> dict[str, Any]:
-        """Reject a state whose JSON encoding exceeds MAX_STATE_BYTES.
-
-        Args:
-            value: Parsed state dict.
+    @model_validator(mode='after')
+    def _bots_leave_room_for_host(self) -> GameCreate:
+        """Reject more bots than there are seats besides the host's.
 
         Returns:
-            The same dict when it fits.
+            The validated model.
 
         Raises:
-            ValueError: If the serialized state is too large.
+            ValueError: If the bots would not fit.
         """
-        size = len(json.dumps(value, separators=(',', ':')).encode('utf-8'))
-        if size > MAX_STATE_BYTES:
-            raise ValueError(f'state exceeds {MAX_STATE_BYTES} bytes ({size}).')
-        return value
+        if self.bots > self.max_players - 1:
+            raise ValueError('bots must leave a seat for the host.')
+        return self
 
 
-class GameSessionCreate(GameSessionBase):
-    """Payload to create a game session (optional initial state).
+class GameSeat(BaseModel):
+    """One occupied seat, as shown in lobbies and game lists.
 
     Attributes:
-        state: Serialized Catan game state as dictionary (inherited from GameSessionBase).
+        seat: Seat number; the engine player id once the game starts.
+        name: Display name.
+        is_bot: Whether a random bot plays this seat.
+        is_you: Whether the requesting user holds this seat.
     """
 
+    seat: int
+    name: str
+    is_bot: bool
+    is_you: bool
 
-class GameSessionRead(GameSessionBase):
-    """Game session as returned by the API (read-only fields).
+
+class GameSummary(BaseModel):
+    """A game as listed in the lobby.
 
     Attributes:
-        id: Game session ID (primary key).
-        user_id: User UUID who owns the session.
-        state: Serialized Catan game state as dictionary (inherited from GameSessionBase).
-        created_at: Timestamp when the session was created.
-        updated_at: Timestamp when the session was last updated.
+        id: Game id.
+        status: waiting, active, or finished.
+        host_name: Display name of the host.
+        is_host: Whether the requesting user is the host.
+        max_players: Seats at the table.
+        seats: Occupied seats in seat order.
+        your_seat: The requesting user's seat, if seated.
+        your_turn: Whether the game is waiting on the requesting user.
+        current_player_name: Whose turn it is, once started.
+        winner_name: Winner, once finished.
+        version: Bumped on every change.
+        created_at: When the game was created.
+        updated_at: When the game last changed.
     """
 
     id: int
-    user_id: uuid.UUID
+    status: GameStatus
+    host_name: str
+    is_host: bool
+    max_players: int
+    seats: list[GameSeat]
+    your_seat: int | None
+    your_turn: bool
+    current_player_name: str | None
+    winner_name: str | None
+    version: int
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+
+class GameDetail(GameSummary):
+    """A game with the requesting user's view of the board.
+
+    Attributes:
+        view: What the requesting user may see; None while in the lobby.
+    """
+
+    view: GameView | None = None
+
+
+class GameList(BaseModel):
+    """Response for GET /games.
+
+    Attributes:
+        mine: Games the requesting user is seated in, most recently active first.
+        open: Lobbies with a free seat the requesting user could join.
+    """
+
+    mine: list[GameSummary]
+    open: list[GameSummary]
+
+
+class GameActionRequest(BaseModel):
+    """Request body for POST /games/{game_id}/actions.
+
+    Attributes:
+        action: The move to make, discriminated by its `type`.
+    """
+
+    action: Action

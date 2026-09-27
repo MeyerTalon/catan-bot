@@ -33,7 +33,7 @@ note to self: use small RL models (for fast inference), train N (large) in paral
 | **Frontend** (`frontend/`) | React 18 · Vite · TypeScript · typed client generated from the backend's OpenAPI schema | S3 + CloudFront |
 | **Database** (`db/`) | Postgres 16, schema owned by Alembic migrations | RDS `db.t4g.micro` |
 | **Auth** | Amazon Cognito user pool, proxied through the API (sign-up, login, refresh) | Cognito |
-| **Game engine** (`engine/`) | Pure-Python Catan rules: `GameState`, `Action`s, and the `GameEngine` that applies them (boilerplate for now) | imported by the backend |
+| **Game engine** (`engine/`) | Pure-Python Catan rules: `GameState`, `Action`s, and the `GameEngine` that applies them, per-seat views, and the random bot | imported by the backend |
 | **Infra** (`terraform/`) | Terraform ≥ 1.10, reusable modules + per-env stacks, remote S3 state | AWS, ≈ $44/month idle |
 
 ```

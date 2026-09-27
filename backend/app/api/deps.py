@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.security import get_user_id_from_token
 from app.db.session import db_session
 from app.models.user import User
+
+# declared as a security scheme rather than a header parameter, so the OpenAPI
+# client does not make every protected call pass the header by hand. a missing
+# or non-bearer header yields None and a 401 below.
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -36,11 +42,13 @@ def bearer_token(authorization: str | None) -> str | None:
     return authorization[len('Bearer ') :].strip() or None
 
 
-def get_current_user_id(authorization: str = Header(..., alias='Authorization')) -> str:
-    """Extract and validate user ID from Authorization header.
+def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> str:
+    """Extract and validate user ID from the Authorization header.
 
     Args:
-        authorization: Authorization header (format: "Bearer <token>")
+        credentials: Parsed "Bearer <token>" header, or None when absent or malformed.
 
     Returns:
         User ID (UUID as string) from the validated token.
@@ -48,13 +56,12 @@ def get_current_user_id(authorization: str = Header(..., alias='Authorization'))
     Raises:
         HTTPException: 401 if Authorization header is missing, malformed, or token is invalid.
     """
-    token = bearer_token(authorization)
-    if token is None:
+    if credentials is None or not credentials.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authorization header format. Expected 'Bearer <token>'.",
         )
-    return get_user_id_from_token(token)
+    return get_user_id_from_token(credentials.credentials)
 
 
 def get_current_user(

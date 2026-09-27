@@ -246,7 +246,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/users/{user_id}/sessions": {
+    "/games": {
         parameters: {
             query?: never;
             header?: never;
@@ -254,48 +254,252 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Sessions For User
-         * @description List game sessions for a user, newest first.
+         * List Games
+         * @description List the user's games and open lobbies they could join.
          *
          *     Args:
-         *         user_id: User UUID as string (from path parameter).
          *         current_user: Authenticated user (injected dependency).
          *         db: Database session (injected dependency).
          *
          *     Returns:
-         *         List of game sessions as GameSessionRead schemas, ordered by created_at descending.
-         *
-         *     Raises:
-         *         HTTPException: 403 if trying to access another user's sessions.
-         *
-         *     Note:
-         *         Requires Authorization header with a valid Cognito access token.
-         *         Users can only list their own sessions.
+         *         The user's games and joinable lobbies.
          */
-        get: operations["list_sessions_for_user_users__user_id__sessions_get"];
+        get: operations["list_games_games_get"];
         put?: never;
         /**
-         * Create Session For User
-         * @description Create a game session for a user.
+         * Create Game
+         * @description Open a lobby hosted by the user, optionally with bots already seated.
          *
          *     Args:
-         *         user_id: User UUID as string (from path parameter).
-         *         payload: Game session creation data containing optional initial state.
+         *         payload: Table size and bot count.
          *         current_user: Authenticated user (injected dependency).
          *         db: Database session (injected dependency).
          *
          *     Returns:
-         *         Created game session as GameSessionRead schema.
+         *         The new lobby.
+         */
+        post: operations["create_game_games_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{game_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Game
+         * @description Get a game and the user's view of the board. Clients poll this.
+         *
+         *     Args:
+         *         game_id: Game id.
+         *         current_user: Authenticated user (injected dependency).
+         *         db: Database session (injected dependency).
+         *
+         *     Returns:
+         *         The game; spectators see no private hands.
          *
          *     Raises:
-         *         HTTPException: 403 if trying to create session for another user.
-         *         HTTPException: 404 if user not found.
-         *
-         *     Note:
-         *         Requires Authorization header with a valid Cognito access token.
-         *         Users can only create their own sessions.
+         *         HTTPException: 404 if the game does not exist.
          */
-        post: operations["create_session_for_user_users__user_id__sessions_post"];
+        get: operations["get_game_games__game_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{game_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join Game
+         * @description Take a free seat in a lobby.
+         *
+         *     Args:
+         *         game_id: Game id.
+         *         current_user: Authenticated user (injected dependency).
+         *         db: Database session (injected dependency).
+         *
+         *     Returns:
+         *         The lobby.
+         *
+         *     Raises:
+         *         HTTPException: 404 if missing; 409 if started or full.
+         */
+        post: operations["join_game_games__game_id__join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{game_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Leave Game
+         * @description Leave a game: frees a lobby seat (the host closes the lobby) or hands
+         *     a seat in a running game to a bot.
+         *
+         *     Args:
+         *         game_id: Game id.
+         *         current_user: Authenticated user (injected dependency).
+         *         db: Database session (injected dependency).
+         *
+         *     Returns:
+         *         Empty 204 response.
+         *
+         *     Raises:
+         *         HTTPException: 404 if missing or not seated.
+         */
+        post: operations["leave_game_games__game_id__leave_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{game_id}/bots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Bot
+         * @description Seat a random bot (host only).
+         *
+         *     Args:
+         *         game_id: Game id.
+         *         current_user: Authenticated user (injected dependency).
+         *         db: Database session (injected dependency).
+         *
+         *     Returns:
+         *         The lobby.
+         *
+         *     Raises:
+         *         HTTPException: 403 if not the host; 404 if missing; 409 if started or full.
+         */
+        post: operations["add_bot_games__game_id__bots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{game_id}/seats/{seat}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Seat
+         * @description Remove a bot or another player from the lobby (host only).
+         *
+         *     Args:
+         *         game_id: Game id.
+         *         seat: Seat to clear.
+         *         current_user: Authenticated user (injected dependency).
+         *         db: Database session (injected dependency).
+         *
+         *     Returns:
+         *         The lobby.
+         *
+         *     Raises:
+         *         HTTPException: 403 if not the host; 404 if missing or empty; 409 if started.
+         */
+        delete: operations["remove_seat_games__game_id__seats__seat__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{game_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Game
+         * @description Start the game with whoever is seated (host only, two or more players).
+         *
+         *     Args:
+         *         game_id: Game id.
+         *         current_user: Authenticated user (injected dependency).
+         *         db: Database session (injected dependency).
+         *
+         *     Returns:
+         *         The started game.
+         *
+         *     Raises:
+         *         HTTPException: 403 if not the host; 404 if missing; 409 if started or too few players.
+         */
+        post: operations["start_game_games__game_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{game_id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Action
+         * @description Make a move; bots then play until a human is up.
+         *
+         *     Args:
+         *         game_id: Game id.
+         *         payload: The move.
+         *         current_user: Authenticated user (injected dependency).
+         *         db: Database session (injected dependency).
+         *
+         *     Returns:
+         *         The game after the move and any bot moves.
+         *
+         *     Raises:
+         *         HTTPException: 400 if the move is illegal; 403 if not seated; 404 if
+         *             missing; 409 if the game is not in progress.
+         */
+        post: operations["submit_action_games__game_id__actions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -477,47 +681,186 @@ export interface components {
             username?: string | null;
         };
         /**
-         * GameSessionCreate
-         * @description Payload to create a game session (optional initial state).
-         *
-         *     Attributes:
-         *         state: Serialized Catan game state as dictionary (inherited from GameSessionBase).
+         * Board
+         * @description hex layout, harbours, and the robber's position.
          */
-        GameSessionCreate: {
+        Board: {
+            /** Hexes */
+            hexes: components["schemas"]["HexTile"][];
+            /** Ports */
+            ports?: components["schemas"]["Port"][];
+            /** Robber Hex Id */
+            robber_hex_id: number;
+        };
+        /**
+         * BuildCity
+         * @description upgrade an owned settlement to a city.
+         */
+        BuildCity: {
             /**
-             * State
-             * @description Serialized Catan game state.
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
-            state?: {
-                [key: string]: unknown;
+            type: "build_city";
+            /** Node */
+            node: number;
+        };
+        /**
+         * BuildRoad
+         * @description place a road on an edge.
+         */
+        BuildRoad: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "build_road";
+            /** Edge */
+            edge: [
+                number,
+                number
+            ];
+        };
+        /**
+         * BuildSettlement
+         * @description place a settlement on a node.
+         */
+        BuildSettlement: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "build_settlement";
+            /** Node */
+            node: number;
+        };
+        /**
+         * BuyDevCard
+         * @description buy the top development card.
+         */
+        BuyDevCard: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "buy_dev_card";
+        };
+        /**
+         * CancelTrade
+         * @description withdraw the open trade offer.
+         */
+        CancelTrade: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "cancel_trade";
+        };
+        /**
+         * ConfirmTrade
+         * @description complete the open trade offer with one player who accepted it.
+         */
+        ConfirmTrade: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "confirm_trade";
+            /** Partner Id */
+            partner_id: number;
+        };
+        /**
+         * DevCard
+         * @description development card kinds.
+         * @enum {string}
+         */
+        DevCard: "knight" | "victory_point" | "road_building" | "year_of_plenty" | "monopoly";
+        /**
+         * Discard
+         * @description return half a hand of more than seven cards after a 7 is rolled.
+         */
+        Discard: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "discard";
+            /** Resources */
+            resources: {
+                [key: string]: number;
             };
         };
         /**
-         * GameSessionRead
-         * @description Game session as returned by the API (read-only fields).
+         * EndTurn
+         * @description pass play to the next player.
+         */
+        EndTurn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "end_turn";
+        };
+        /**
+         * GameActionRequest
+         * @description Request body for POST /games/{game_id}/actions.
          *
          *     Attributes:
-         *         id: Game session ID (primary key).
-         *         user_id: User UUID who owns the session.
-         *         state: Serialized Catan game state as dictionary (inherited from GameSessionBase).
-         *         created_at: Timestamp when the session was created.
-         *         updated_at: Timestamp when the session was last updated.
+         *         action: The move to make, discriminated by its `type`.
          */
-        GameSessionRead: {
+        GameActionRequest: {
+            /** Action */
+            action: components["schemas"]["RollDice"] | components["schemas"]["Discard"] | components["schemas"]["MoveRobber"] | components["schemas"]["BuildRoad"] | components["schemas"]["BuildSettlement"] | components["schemas"]["BuildCity"] | components["schemas"]["BuyDevCard"] | components["schemas"]["PlayKnight"] | components["schemas"]["PlayRoadBuilding"] | components["schemas"]["PlayYearOfPlenty"] | components["schemas"]["PlayMonopoly"] | components["schemas"]["MaritimeTrade"] | components["schemas"]["ProposeTrade"] | components["schemas"]["RespondTrade"] | components["schemas"]["ConfirmTrade"] | components["schemas"]["CancelTrade"] | components["schemas"]["EndTurn"];
+        };
+        /**
+         * GameCreate
+         * @description Request body for POST /games.
+         *
+         *     Attributes:
+         *         max_players: Seats at the table, including the host and bots.
+         *         bots: Seats to fill with random bots straight away.
+         */
+        GameCreate: {
             /**
-             * State
-             * @description Serialized Catan game state.
+             * Max Players
+             * @default 4
              */
-            state?: {
-                [key: string]: unknown;
-            };
+            max_players: number;
+            /**
+             * Bots
+             * @default 0
+             */
+            bots: number;
+        };
+        /**
+         * GameDetail
+         * @description A game with the requesting user's view of the board.
+         *
+         *     Attributes:
+         *         view: What the requesting user may see; None while in the lobby.
+         */
+        GameDetail: {
             /** Id */
             id: number;
-            /**
-             * User Id
-             * Format: uuid
-             */
-            user_id: string;
+            status: components["schemas"]["GameStatus"];
+            /** Host Name */
+            host_name: string;
+            /** Is Host */
+            is_host: boolean;
+            /** Max Players */
+            max_players: number;
+            /** Seats */
+            seats: components["schemas"]["GameSeat"][];
+            /** Your Seat */
+            your_seat: number | null;
+            /** Your Turn */
+            your_turn: boolean;
+            /** Current Player Name */
+            current_player_name: string | null;
+            /** Winner Name */
+            winner_name: string | null;
+            /** Version */
+            version: number;
             /**
              * Created At
              * Format: date-time
@@ -528,6 +871,162 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            view?: components["schemas"]["GameView"] | null;
+        };
+        /**
+         * GameList
+         * @description Response for GET /games.
+         *
+         *     Attributes:
+         *         mine: Games the requesting user is seated in, most recently active first.
+         *         open: Lobbies with a free seat the requesting user could join.
+         */
+        GameList: {
+            /** Mine */
+            mine: components["schemas"]["GameSummary"][];
+            /** Open */
+            open: components["schemas"]["GameSummary"][];
+        };
+        /**
+         * GameSeat
+         * @description One occupied seat, as shown in lobbies and game lists.
+         *
+         *     Attributes:
+         *         seat: Seat number; the engine player id once the game starts.
+         *         name: Display name.
+         *         is_bot: Whether a random bot plays this seat.
+         *         is_you: Whether the requesting user holds this seat.
+         */
+        GameSeat: {
+            /** Seat */
+            seat: number;
+            /** Name */
+            name: string;
+            /** Is Bot */
+            is_bot: boolean;
+            /** Is You */
+            is_you: boolean;
+        };
+        /**
+         * GameStatus
+         * @description Lifecycle of a game: lobby, in play, done.
+         * @enum {string}
+         */
+        GameStatus: "waiting" | "active" | "finished";
+        /**
+         * GameSummary
+         * @description A game as listed in the lobby.
+         *
+         *     Attributes:
+         *         id: Game id.
+         *         status: waiting, active, or finished.
+         *         host_name: Display name of the host.
+         *         is_host: Whether the requesting user is the host.
+         *         max_players: Seats at the table.
+         *         seats: Occupied seats in seat order.
+         *         your_seat: The requesting user's seat, if seated.
+         *         your_turn: Whether the game is waiting on the requesting user.
+         *         current_player_name: Whose turn it is, once started.
+         *         winner_name: Winner, once finished.
+         *         version: Bumped on every change.
+         *         created_at: When the game was created.
+         *         updated_at: When the game last changed.
+         */
+        GameSummary: {
+            /** Id */
+            id: number;
+            status: components["schemas"]["GameStatus"];
+            /** Host Name */
+            host_name: string;
+            /** Is Host */
+            is_host: boolean;
+            /** Max Players */
+            max_players: number;
+            /** Seats */
+            seats: components["schemas"]["GameSeat"][];
+            /** Your Seat */
+            your_seat: number | null;
+            /** Your Turn */
+            your_turn: boolean;
+            /** Current Player Name */
+            current_player_name: string | null;
+            /** Winner Name */
+            winner_name: string | null;
+            /** Version */
+            version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * GameView
+         * @description a game from one seat's point of view.
+         *
+         *     `legal_actions` never lists discards (there can be thousands of them);
+         *     `discards_owed` says how many cards each player must return instead.
+         */
+        GameView: {
+            /** Viewer Id */
+            viewer_id: number | null;
+            /** Players */
+            players: components["schemas"]["PlayerView"][];
+            board: components["schemas"]["Board"];
+            /** Node Positions */
+            node_positions: [
+                number,
+                number
+            ][];
+            /** Edges */
+            edges: [
+                number,
+                number
+            ][];
+            /** Current Player Id */
+            current_player_id: number;
+            /** Turn Number */
+            turn_number: number;
+            phase: components["schemas"]["TurnPhase"];
+            /** Dice */
+            dice: [
+                number,
+                number
+            ] | null;
+            /** Bank */
+            bank: {
+                [key: string]: number;
+            };
+            /** Dev Deck Count */
+            dev_deck_count: number;
+            /** Discards Owed */
+            discards_owed: {
+                [key: string]: number;
+            };
+            /** Free Roads */
+            free_roads: number;
+            /** Dev Card Played */
+            dev_card_played: boolean;
+            trade_offer: components["schemas"]["TradeOffer"] | null;
+            /** Trades Left */
+            trades_left: number;
+            /** Longest Road Player Id */
+            longest_road_player_id: number | null;
+            /** Largest Army Player Id */
+            largest_army_player_id: number | null;
+            /** Winner Id */
+            winner_id: number | null;
+            /** Waiting On */
+            waiting_on: number[];
+            /** Legal Actions */
+            legal_actions: (components["schemas"]["RollDice"] | components["schemas"]["Discard"] | components["schemas"]["MoveRobber"] | components["schemas"]["BuildRoad"] | components["schemas"]["BuildSettlement"] | components["schemas"]["BuildCity"] | components["schemas"]["BuyDevCard"] | components["schemas"]["PlayKnight"] | components["schemas"]["PlayRoadBuilding"] | components["schemas"]["PlayYearOfPlenty"] | components["schemas"]["PlayMonopoly"] | components["schemas"]["MaritimeTrade"] | components["schemas"]["ProposeTrade"] | components["schemas"]["RespondTrade"] | components["schemas"]["ConfirmTrade"] | components["schemas"]["CancelTrade"] | components["schemas"]["EndTurn"])[];
+            /** Log */
+            log: components["schemas"]["LogEntry"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -545,6 +1044,251 @@ export interface components {
             /** Status */
             status: string;
         };
+        /**
+         * HexTile
+         * @description one hex on the board, at axial coordinates (q, r).
+         *
+         *     the desert has no resource or number token.
+         */
+        HexTile: {
+            /** Id */
+            id: number;
+            /**
+             * Q
+             * @default 0
+             */
+            q: number;
+            /**
+             * R
+             * @default 0
+             */
+            r: number;
+            resource?: components["schemas"]["Resource"] | null;
+            /** Number Token */
+            number_token?: number | null;
+        };
+        /**
+         * LogEntry
+         * @description one line of the public game log; `seq` numbers entries from 0.
+         */
+        LogEntry: {
+            /** Seq */
+            seq: number;
+            /** Turn */
+            turn: number;
+            /** Player Id */
+            player_id?: number | null;
+            /** Message */
+            message: string;
+        };
+        /**
+         * MaritimeTrade
+         * @description trade with the bank at 4:1, or at a better port rate.
+         */
+        MaritimeTrade: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "maritime_trade";
+            give: components["schemas"]["Resource"];
+            receive: components["schemas"]["Resource"];
+        };
+        /**
+         * MoveRobber
+         * @description move the robber and steal one card from a player next to its new hex.
+         */
+        MoveRobber: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "move_robber";
+            /** Hex Id */
+            hex_id: number;
+            /** Victim Id */
+            victim_id?: number | null;
+        };
+        /**
+         * PlayKnight
+         * @description play a knight: move the robber and count towards largest army.
+         */
+        PlayKnight: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "play_knight";
+        };
+        /**
+         * PlayMonopoly
+         * @description play monopoly: every other player hands over all of one resource.
+         */
+        PlayMonopoly: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "play_monopoly";
+            resource: components["schemas"]["Resource"];
+        };
+        /**
+         * PlayRoadBuilding
+         * @description play road building: place two roads for free.
+         */
+        PlayRoadBuilding: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "play_road_building";
+        };
+        /**
+         * PlayYearOfPlenty
+         * @description play year of plenty: take any two resources from the bank.
+         */
+        PlayYearOfPlenty: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "play_year_of_plenty";
+            /** Resources */
+            resources: [
+                components["schemas"]["Resource"],
+                components["schemas"]["Resource"]
+            ];
+        };
+        /**
+         * PlayerView
+         * @description one seat as seen by the viewer; hands are private unless it is theirs.
+         */
+        PlayerView: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Victory Points */
+            victory_points: number;
+            /** Resource Count */
+            resource_count: number;
+            /** Dev Card Count */
+            dev_card_count: number;
+            /** Knights Played */
+            knights_played: number;
+            /** Longest Road Length */
+            longest_road_length: number;
+            /** Roads */
+            roads: [
+                number,
+                number
+            ][];
+            /** Settlements */
+            settlements: number[];
+            /** Cities */
+            cities: number[];
+            /** Resources */
+            resources?: {
+                [key: string]: number;
+            } | null;
+            /** Dev Cards */
+            dev_cards?: components["schemas"]["DevCard"][] | null;
+            /** New Dev Cards */
+            new_dev_cards?: components["schemas"]["DevCard"][] | null;
+            /** Trade Ratios */
+            trade_ratios?: {
+                [key: string]: number;
+            } | null;
+        };
+        /**
+         * Port
+         * @description a harbour on a coastal edge; `resource` None is a generic 3:1 port.
+         */
+        Port: {
+            resource?: components["schemas"]["Resource"] | null;
+            /** Nodes */
+            nodes: [
+                number,
+                number
+            ];
+        };
+        /**
+         * ProposeTrade
+         * @description offer `give` to the other players in exchange for `receive`.
+         */
+        ProposeTrade: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "propose_trade";
+            /** Give */
+            give: {
+                [key: string]: number;
+            };
+            /** Receive */
+            receive: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * Resource
+         * @description the five tradeable resources.
+         * @enum {string}
+         */
+        Resource: "brick" | "lumber" | "wool" | "grain" | "ore";
+        /**
+         * RespondTrade
+         * @description accept or reject the open trade offer.
+         */
+        RespondTrade: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "respond_trade";
+            /** Accept */
+            accept: boolean;
+        };
+        /**
+         * RollDice
+         * @description roll both dice to start the main part of the turn.
+         */
+        RollDice: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "roll_dice";
+        };
+        /**
+         * TradeOffer
+         * @description a domestic trade the current player has put to the table.
+         *
+         *     `give` is what the proposer hands over, `receive` what they ask for.
+         */
+        TradeOffer: {
+            /** Proposer Id */
+            proposer_id: number;
+            /** Give */
+            give: {
+                [key: string]: number;
+            };
+            /** Receive */
+            receive: {
+                [key: string]: number;
+            };
+            /** Accepted */
+            accepted?: number[];
+            /** Rejected */
+            rejected?: number[];
+        };
+        /**
+         * TurnPhase
+         * @description what the game is waiting for.
+         * @enum {string}
+         */
+        TurnPhase: "setup_settlement" | "setup_road" | "roll" | "discard" | "move_robber" | "main" | "road_building" | "game_over";
         /**
          * UserRead
          * @description User as returned by the API (read-only fields).
@@ -816,9 +1560,7 @@ export interface operations {
     get_user_users__user_id__get: {
         parameters: {
             query?: never;
-            header: {
-                Authorization: string;
-            };
+            header?: never;
             path: {
                 user_id: string;
             };
@@ -846,15 +1588,11 @@ export interface operations {
             };
         };
     };
-    list_sessions_for_user_users__user_id__sessions_get: {
+    list_games_games_get: {
         parameters: {
             query?: never;
-            header: {
-                Authorization: string;
-            };
-            path: {
-                user_id: string;
-            };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -865,7 +1603,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GameSessionRead"][];
+                    "application/json": components["schemas"]["GameList"];
+                };
+            };
+        };
+    };
+    create_game_games_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameDetail"];
                 };
             };
             /** @description Validation Error */
@@ -879,20 +1641,203 @@ export interface operations {
             };
         };
     };
-    create_session_for_user_users__user_id__sessions_post: {
+    get_game_games__game_id__get: {
         parameters: {
             query?: never;
-            header: {
-                Authorization: string;
-            };
+            header?: never;
             path: {
-                user_id: string;
+                game_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    join_game_games__game_id__join_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_game_games__game_id__leave_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_bot_games__game_id__bots_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_seat_games__game_id__seats__seat__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: number;
+                seat: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_game_games__game_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_action_games__game_id__actions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: number;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GameSessionCreate"];
+                "application/json": components["schemas"]["GameActionRequest"];
             };
         };
         responses: {
@@ -902,7 +1847,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GameSessionRead"];
+                    "application/json": components["schemas"]["GameDetail"];
                 };
             };
             /** @description Validation Error */
