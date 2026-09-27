@@ -2,7 +2,6 @@
 name = "catan-engine"
 version = "0.1.0"
 description = "Rules engine for Catan: board, game state, and legal-move application."
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7.0",
@@ -12,11 +11,11 @@ dependencies = [
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["engine"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
-[tool.setuptools.package-dir]
-engine = "src"
+[tool.setuptools.package-data]
+engine = ["py.typed"]
 
 [dependency-groups]
 dev = [
@@ -54,7 +53,8 @@ docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src"]
+mypy_path = "src"
+packages = ["engine"]
 warn_unused_ignores = true
 warn_redundant_casts = true
 warn_return_any = true

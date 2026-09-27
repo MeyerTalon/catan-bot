@@ -1,7 +1,7 @@
 # Catan backend: Docker image for local testing and AWS ECS.
 # Build context is the REPO ROOT: the uv workspace lockfile lives there and
-# the image carries db/ (Alembic). Only the catan-backend workspace member is
-# installed.
+# the image carries db/ (Alembic). The catan-backend workspace member is
+# installed together with the catan-engine member it depends on.
 #   docker build -f backend/Dockerfile .
 FROM python:3.11-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /uvx /bin/
@@ -12,9 +12,11 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 COPY pyproject.toml uv.lock ./
 COPY backend/pyproject.toml ./backend/
-RUN uv sync --frozen --no-dev --no-install-project --no-editable --package catan-backend
+COPY engine/pyproject.toml ./engine/
+RUN uv sync --frozen --no-dev --no-install-workspace --no-editable --package catan-backend
 
 COPY backend/app ./backend/app
+COPY engine/src ./engine/src
 RUN uv sync --frozen --no-dev --no-editable --package catan-backend
 
 FROM python:3.11-slim

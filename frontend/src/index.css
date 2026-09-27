@@ -17,6 +17,12 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-player-1: var(--player-1);
+  --color-player-2: var(--player-2);
+  --color-player-3: var(--player-3);
+  --color-player-4: var(--player-4);
+  --color-sea: var(--sea);
+  --color-desert: var(--desert);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -79,6 +85,13 @@
   --chart-3: #7fa650; /* lumber */
   --chart-4: #8a8f94; /* ore */
   --chart-5: #b9d68c; /* wool */
+  --desert: #cdb98c;
+  --sea: #1a3a55;
+  /* Seat colours, for pieces on the board and player badges. */
+  --player-1: #e5604d; /* red */
+  --player-2: #4f97e3; /* blue */
+  --player-3: #f2efe6; /* white */
+  --player-4: #b784e8; /* violet */
   --radius: 0.375rem;
   --sidebar: #14222f;
   --sidebar-foreground: #ebe6da;

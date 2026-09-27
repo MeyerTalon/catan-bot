@@ -37,13 +37,16 @@ def get_by_email(db: Session, email: str) -> User | None:
     return db.query(User).filter(User.email == email).first()
 
 
-def create(db: Session, *, id: uuid.UUID, email: str) -> User:
+def create(
+    db: Session, *, id: uuid.UUID, email: str, username: str | None = None
+) -> User:
     """Create a user.
 
     Args:
         db: Database session.
         id: User UUID (must match Cognito `sub`).
         email: User email address.
+        username: Display name chosen at signup, if any.
 
     Returns:
         Created User model instance.
@@ -51,7 +54,7 @@ def create(db: Session, *, id: uuid.UUID, email: str) -> User:
     Note:
         Caller must commit or use within db_session context manager.
     """
-    user = User(id=id, email=email)
+    user = User(id=id, email=email, username=username)
     db.add(user)
     db.flush()
     return user

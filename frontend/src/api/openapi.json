@@ -305,6 +305,11 @@
         "summary": "Get User",
         "description": "Get a user by UUID.\n\nprofiles are created by signup and login; there is no public create route.\n\nArgs:\n    user_id: User UUID as string (from path parameter).\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    User profile as UserRead schema.\n\nRaises:\n    HTTPException: 403 if trying to access another user's profile.\n    HTTPException: 404 if user not found.\n\nNote:\n    Requires Authorization header with a valid Cognito access token.\n    Users can only access their own profile.",
         "operationId": "get_user_users__user_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "user_id",
@@ -313,15 +318,6 @@
             "schema": {
               "type": "string",
               "title": "User Id"
-            }
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
             }
           }
         ],
@@ -349,51 +345,109 @@
         }
       }
     },
-    "/users/{user_id}/sessions": {
-      "post": {
+    "/games": {
+      "get": {
         "tags": [
-          "sessions"
+          "games"
         ],
-        "summary": "Create Session For User",
-        "description": "Create a game session for a user.\n\nArgs:\n    user_id: User UUID as string (from path parameter).\n    payload: Game session creation data containing optional initial state.\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    Created game session as GameSessionRead schema.\n\nRaises:\n    HTTPException: 403 if trying to create session for another user.\n    HTTPException: 404 if user not found.\n\nNote:\n    Requires Authorization header with a valid Cognito access token.\n    Users can only create their own sessions.",
-        "operationId": "create_session_for_user_users__user_id__sessions_post",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "User Id"
-            }
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GameSessionCreate"
-              }
-            }
-          }
-        },
+        "summary": "List Games",
+        "description": "List the user's games and open lobbies they could join.\n\nArgs:\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    The user's games and joinable lobbies.",
+        "operationId": "list_games_games_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GameSessionRead"
+                  "$ref": "#/components/schemas/GameList"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Create Game",
+        "description": "Open a lobby hosted by the user, optionally with bots already seated.\n\nArgs:\n    payload: Table size and bot count.\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    The new lobby.",
+        "operationId": "create_game_games_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/games/{game_id}": {
+      "get": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Get Game",
+        "description": "Get a game and the user's view of the board. Clients poll this.\n\nArgs:\n    game_id: Game id.\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    The game; spectators see no private hands.\n\nRaises:\n    HTTPException: 404 if the game does not exist.",
+        "operationId": "get_game_games__game_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Game Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameDetail"
                 }
               }
             }
@@ -409,31 +463,29 @@
             }
           }
         }
-      },
-      "get": {
+      }
+    },
+    "/games/{game_id}/join": {
+      "post": {
         "tags": [
-          "sessions"
+          "games"
         ],
-        "summary": "List Sessions For User",
-        "description": "List game sessions for a user, newest first.\n\nArgs:\n    user_id: User UUID as string (from path parameter).\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    List of game sessions as GameSessionRead schemas, ordered by created_at descending.\n\nRaises:\n    HTTPException: 403 if trying to access another user's sessions.\n\nNote:\n    Requires Authorization header with a valid Cognito access token.\n    Users can only list their own sessions.",
-        "operationId": "list_sessions_for_user_users__user_id__sessions_get",
+        "summary": "Join Game",
+        "description": "Take a free seat in a lobby.\n\nArgs:\n    game_id: Game id.\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    The lobby.\n\nRaises:\n    HTTPException: 404 if missing; 409 if started or full.",
+        "operationId": "join_game_games__game_id__join_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
-            "name": "user_id",
+            "name": "game_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "title": "User Id"
-            }
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Authorization"
+              "type": "integer",
+              "title": "Game Id"
             }
           }
         ],
@@ -443,11 +495,259 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GameSessionRead"
-                  },
-                  "title": "Response List Sessions For User Users  User Id  Sessions Get"
+                  "$ref": "#/components/schemas/GameDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/games/{game_id}/leave": {
+      "post": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Leave Game",
+        "description": "Leave a game: frees a lobby seat (the host closes the lobby) or hands\na seat in a running game to a bot.\n\nArgs:\n    game_id: Game id.\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    Empty 204 response.\n\nRaises:\n    HTTPException: 404 if missing or not seated.",
+        "operationId": "leave_game_games__game_id__leave_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Game Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/games/{game_id}/bots": {
+      "post": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Add Bot",
+        "description": "Seat a random bot (host only).\n\nArgs:\n    game_id: Game id.\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    The lobby.\n\nRaises:\n    HTTPException: 403 if not the host; 404 if missing; 409 if started or full.",
+        "operationId": "add_bot_games__game_id__bots_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Game Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/games/{game_id}/seats/{seat}": {
+      "delete": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Remove Seat",
+        "description": "Remove a bot or another player from the lobby (host only).\n\nArgs:\n    game_id: Game id.\n    seat: Seat to clear.\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    The lobby.\n\nRaises:\n    HTTPException: 403 if not the host; 404 if missing or empty; 409 if started.",
+        "operationId": "remove_seat_games__game_id__seats__seat__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Game Id"
+            }
+          },
+          {
+            "name": "seat",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Seat"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/games/{game_id}/start": {
+      "post": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Start Game",
+        "description": "Start the game with whoever is seated (host only, two or more players).\n\nArgs:\n    game_id: Game id.\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    The started game.\n\nRaises:\n    HTTPException: 403 if not the host; 404 if missing; 409 if started or too few players.",
+        "operationId": "start_game_games__game_id__start_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Game Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/games/{game_id}/actions": {
+      "post": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Submit Action",
+        "description": "Make a move; bots then play until a human is up.\n\nArgs:\n    game_id: Game id.\n    payload: The move.\n    current_user: Authenticated user (injected dependency).\n    db: Database session (injected dependency).\n\nReturns:\n    The game after the move and any bot moves.\n\nRaises:\n    HTTPException: 400 if the move is illegal; 403 if not seated; 404 if\n        missing; 409 if the game is not in progress.",
+        "operationId": "submit_action_games__game_id__actions_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Game Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameDetail"
                 }
               }
             }
@@ -718,35 +1018,552 @@
         "title": "AuthUser",
         "description": "Authenticated user identity returned with a session.\n\nAttributes:\n    id: Cognito user UUID (`sub`).\n    email: User email if present on the token.\n    username: Display name if present on the token."
       },
-      "GameSessionCreate": {
+      "Board": {
         "properties": {
-          "state": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "State",
-            "description": "Serialized Catan game state."
+          "hexes": {
+            "items": {
+              "$ref": "#/components/schemas/HexTile"
+            },
+            "type": "array",
+            "title": "Hexes"
+          },
+          "ports": {
+            "items": {
+              "$ref": "#/components/schemas/Port"
+            },
+            "type": "array",
+            "title": "Ports"
+          },
+          "robber_hex_id": {
+            "type": "integer",
+            "title": "Robber Hex Id"
           }
         },
         "type": "object",
-        "title": "GameSessionCreate",
-        "description": "Payload to create a game session (optional initial state).\n\nAttributes:\n    state: Serialized Catan game state as dictionary (inherited from GameSessionBase)."
+        "required": [
+          "hexes",
+          "robber_hex_id"
+        ],
+        "title": "Board",
+        "description": "hex layout, harbours, and the robber's position."
       },
-      "GameSessionRead": {
+      "BuildCity": {
         "properties": {
-          "state": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "State",
-            "description": "Serialized Catan game state."
+          "type": {
+            "type": "string",
+            "const": "build_city",
+            "title": "Type",
+            "default": "build_city"
           },
+          "node": {
+            "type": "integer",
+            "title": "Node"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node"
+        ],
+        "title": "BuildCity",
+        "description": "upgrade an owned settlement to a city."
+      },
+      "BuildRoad": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "build_road",
+            "title": "Type",
+            "default": "build_road"
+          },
+          "edge": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Edge"
+          }
+        },
+        "type": "object",
+        "required": [
+          "edge"
+        ],
+        "title": "BuildRoad",
+        "description": "place a road on an edge."
+      },
+      "BuildSettlement": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "build_settlement",
+            "title": "Type",
+            "default": "build_settlement"
+          },
+          "node": {
+            "type": "integer",
+            "title": "Node"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node"
+        ],
+        "title": "BuildSettlement",
+        "description": "place a settlement on a node."
+      },
+      "BuyDevCard": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "buy_dev_card",
+            "title": "Type",
+            "default": "buy_dev_card"
+          }
+        },
+        "type": "object",
+        "title": "BuyDevCard",
+        "description": "buy the top development card."
+      },
+      "CancelTrade": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "cancel_trade",
+            "title": "Type",
+            "default": "cancel_trade"
+          }
+        },
+        "type": "object",
+        "title": "CancelTrade",
+        "description": "withdraw the open trade offer."
+      },
+      "ConfirmTrade": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "confirm_trade",
+            "title": "Type",
+            "default": "confirm_trade"
+          },
+          "partner_id": {
+            "type": "integer",
+            "title": "Partner Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "partner_id"
+        ],
+        "title": "ConfirmTrade",
+        "description": "complete the open trade offer with one player who accepted it."
+      },
+      "DevCard": {
+        "type": "string",
+        "enum": [
+          "knight",
+          "victory_point",
+          "road_building",
+          "year_of_plenty",
+          "monopoly"
+        ],
+        "title": "DevCard",
+        "description": "development card kinds."
+      },
+      "Discard": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "discard",
+            "title": "Type",
+            "default": "discard"
+          },
+          "resources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Resource"
+            },
+            "type": "object",
+            "title": "Resources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resources"
+        ],
+        "title": "Discard",
+        "description": "return half a hand of more than seven cards after a 7 is rolled."
+      },
+      "EndTurn": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "end_turn",
+            "title": "Type",
+            "default": "end_turn"
+          }
+        },
+        "type": "object",
+        "title": "EndTurn",
+        "description": "pass play to the next player."
+      },
+      "GameActionRequest": {
+        "properties": {
+          "action": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RollDice"
+              },
+              {
+                "$ref": "#/components/schemas/Discard"
+              },
+              {
+                "$ref": "#/components/schemas/MoveRobber"
+              },
+              {
+                "$ref": "#/components/schemas/BuildRoad"
+              },
+              {
+                "$ref": "#/components/schemas/BuildSettlement"
+              },
+              {
+                "$ref": "#/components/schemas/BuildCity"
+              },
+              {
+                "$ref": "#/components/schemas/BuyDevCard"
+              },
+              {
+                "$ref": "#/components/schemas/PlayKnight"
+              },
+              {
+                "$ref": "#/components/schemas/PlayRoadBuilding"
+              },
+              {
+                "$ref": "#/components/schemas/PlayYearOfPlenty"
+              },
+              {
+                "$ref": "#/components/schemas/PlayMonopoly"
+              },
+              {
+                "$ref": "#/components/schemas/MaritimeTrade"
+              },
+              {
+                "$ref": "#/components/schemas/ProposeTrade"
+              },
+              {
+                "$ref": "#/components/schemas/RespondTrade"
+              },
+              {
+                "$ref": "#/components/schemas/ConfirmTrade"
+              },
+              {
+                "$ref": "#/components/schemas/CancelTrade"
+              },
+              {
+                "$ref": "#/components/schemas/EndTurn"
+              }
+            ],
+            "title": "Action",
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "build_city": "#/components/schemas/BuildCity",
+                "build_road": "#/components/schemas/BuildRoad",
+                "build_settlement": "#/components/schemas/BuildSettlement",
+                "buy_dev_card": "#/components/schemas/BuyDevCard",
+                "cancel_trade": "#/components/schemas/CancelTrade",
+                "confirm_trade": "#/components/schemas/ConfirmTrade",
+                "discard": "#/components/schemas/Discard",
+                "end_turn": "#/components/schemas/EndTurn",
+                "maritime_trade": "#/components/schemas/MaritimeTrade",
+                "move_robber": "#/components/schemas/MoveRobber",
+                "play_knight": "#/components/schemas/PlayKnight",
+                "play_monopoly": "#/components/schemas/PlayMonopoly",
+                "play_road_building": "#/components/schemas/PlayRoadBuilding",
+                "play_year_of_plenty": "#/components/schemas/PlayYearOfPlenty",
+                "propose_trade": "#/components/schemas/ProposeTrade",
+                "respond_trade": "#/components/schemas/RespondTrade",
+                "roll_dice": "#/components/schemas/RollDice"
+              }
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "GameActionRequest",
+        "description": "Request body for POST /games/{game_id}/actions.\n\nAttributes:\n    action: The move to make, discriminated by its `type`."
+      },
+      "GameCreate": {
+        "properties": {
+          "max_players": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 2.0,
+            "title": "Max Players",
+            "default": 4
+          },
+          "bots": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Bots",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "GameCreate",
+        "description": "Request body for POST /games.\n\nAttributes:\n    max_players: Seats at the table, including the host and bots.\n    bots: Seats to fill with random bots straight away."
+      },
+      "GameDetail": {
+        "properties": {
           "id": {
             "type": "integer",
             "title": "Id"
           },
-          "user_id": {
+          "status": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "host_name": {
             "type": "string",
-            "format": "uuid",
-            "title": "User Id"
+            "title": "Host Name"
+          },
+          "is_host": {
+            "type": "boolean",
+            "title": "Is Host"
+          },
+          "max_players": {
+            "type": "integer",
+            "title": "Max Players"
+          },
+          "seats": {
+            "items": {
+              "$ref": "#/components/schemas/GameSeat"
+            },
+            "type": "array",
+            "title": "Seats"
+          },
+          "your_seat": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Your Seat"
+          },
+          "your_turn": {
+            "type": "boolean",
+            "title": "Your Turn"
+          },
+          "current_player_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Player Name"
+          },
+          "winner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Name"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "view": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GameView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "host_name",
+          "is_host",
+          "max_players",
+          "seats",
+          "your_seat",
+          "your_turn",
+          "current_player_name",
+          "winner_name",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GameDetail",
+        "description": "A game with the requesting user's view of the board.\n\nAttributes:\n    view: What the requesting user may see; None while in the lobby."
+      },
+      "GameList": {
+        "properties": {
+          "mine": {
+            "items": {
+              "$ref": "#/components/schemas/GameSummary"
+            },
+            "type": "array",
+            "title": "Mine"
+          },
+          "open": {
+            "items": {
+              "$ref": "#/components/schemas/GameSummary"
+            },
+            "type": "array",
+            "title": "Open"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mine",
+          "open"
+        ],
+        "title": "GameList",
+        "description": "Response for GET /games.\n\nAttributes:\n    mine: Games the requesting user is seated in, most recently active first.\n    open: Lobbies with a free seat the requesting user could join."
+      },
+      "GameSeat": {
+        "properties": {
+          "seat": {
+            "type": "integer",
+            "title": "Seat"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "is_bot": {
+            "type": "boolean",
+            "title": "Is Bot"
+          },
+          "is_you": {
+            "type": "boolean",
+            "title": "Is You"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seat",
+          "name",
+          "is_bot",
+          "is_you"
+        ],
+        "title": "GameSeat",
+        "description": "One occupied seat, as shown in lobbies and game lists.\n\nAttributes:\n    seat: Seat number; the engine player id once the game starts.\n    name: Display name.\n    is_bot: Whether a random bot plays this seat.\n    is_you: Whether the requesting user holds this seat."
+      },
+      "GameStatus": {
+        "type": "string",
+        "enum": [
+          "waiting",
+          "active",
+          "finished"
+        ],
+        "title": "GameStatus",
+        "description": "Lifecycle of a game: lobby, in play, done."
+      },
+      "GameSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GameStatus"
+          },
+          "host_name": {
+            "type": "string",
+            "title": "Host Name"
+          },
+          "is_host": {
+            "type": "boolean",
+            "title": "Is Host"
+          },
+          "max_players": {
+            "type": "integer",
+            "title": "Max Players"
+          },
+          "seats": {
+            "items": {
+              "$ref": "#/components/schemas/GameSeat"
+            },
+            "type": "array",
+            "title": "Seats"
+          },
+          "your_seat": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Your Seat"
+          },
+          "your_turn": {
+            "type": "boolean",
+            "title": "Your Turn"
+          },
+          "current_player_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Player Name"
+          },
+          "winner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Name"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
           },
           "created_at": {
             "type": "string",
@@ -762,12 +1579,310 @@
         "type": "object",
         "required": [
           "id",
-          "user_id",
+          "status",
+          "host_name",
+          "is_host",
+          "max_players",
+          "seats",
+          "your_seat",
+          "your_turn",
+          "current_player_name",
+          "winner_name",
+          "version",
           "created_at",
           "updated_at"
         ],
-        "title": "GameSessionRead",
-        "description": "Game session as returned by the API (read-only fields).\n\nAttributes:\n    id: Game session ID (primary key).\n    user_id: User UUID who owns the session.\n    state: Serialized Catan game state as dictionary (inherited from GameSessionBase).\n    created_at: Timestamp when the session was created.\n    updated_at: Timestamp when the session was last updated."
+        "title": "GameSummary",
+        "description": "A game as listed in the lobby.\n\nAttributes:\n    id: Game id.\n    status: waiting, active, or finished.\n    host_name: Display name of the host.\n    is_host: Whether the requesting user is the host.\n    max_players: Seats at the table.\n    seats: Occupied seats in seat order.\n    your_seat: The requesting user's seat, if seated.\n    your_turn: Whether the game is waiting on the requesting user.\n    current_player_name: Whose turn it is, once started.\n    winner_name: Winner, once finished.\n    version: Bumped on every change.\n    created_at: When the game was created.\n    updated_at: When the game last changed."
+      },
+      "GameView": {
+        "properties": {
+          "viewer_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Viewer Id"
+          },
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerView"
+            },
+            "type": "array",
+            "title": "Players"
+          },
+          "board": {
+            "$ref": "#/components/schemas/Board"
+          },
+          "node_positions": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Node Positions"
+          },
+          "edges": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "current_player_id": {
+            "type": "integer",
+            "title": "Current Player Id"
+          },
+          "turn_number": {
+            "type": "integer",
+            "title": "Turn Number"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/TurnPhase"
+          },
+          "dice": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dice"
+          },
+          "bank": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Resource"
+            },
+            "type": "object",
+            "title": "Bank"
+          },
+          "dev_deck_count": {
+            "type": "integer",
+            "title": "Dev Deck Count"
+          },
+          "discards_owed": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Discards Owed"
+          },
+          "free_roads": {
+            "type": "integer",
+            "title": "Free Roads"
+          },
+          "dev_card_played": {
+            "type": "boolean",
+            "title": "Dev Card Played"
+          },
+          "trade_offer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeOffer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trades_left": {
+            "type": "integer",
+            "title": "Trades Left"
+          },
+          "longest_road_player_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longest Road Player Id"
+          },
+          "largest_army_player_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Largest Army Player Id"
+          },
+          "winner_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Id"
+          },
+          "waiting_on": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Waiting On"
+          },
+          "legal_actions": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/RollDice"
+                },
+                {
+                  "$ref": "#/components/schemas/Discard"
+                },
+                {
+                  "$ref": "#/components/schemas/MoveRobber"
+                },
+                {
+                  "$ref": "#/components/schemas/BuildRoad"
+                },
+                {
+                  "$ref": "#/components/schemas/BuildSettlement"
+                },
+                {
+                  "$ref": "#/components/schemas/BuildCity"
+                },
+                {
+                  "$ref": "#/components/schemas/BuyDevCard"
+                },
+                {
+                  "$ref": "#/components/schemas/PlayKnight"
+                },
+                {
+                  "$ref": "#/components/schemas/PlayRoadBuilding"
+                },
+                {
+                  "$ref": "#/components/schemas/PlayYearOfPlenty"
+                },
+                {
+                  "$ref": "#/components/schemas/PlayMonopoly"
+                },
+                {
+                  "$ref": "#/components/schemas/MaritimeTrade"
+                },
+                {
+                  "$ref": "#/components/schemas/ProposeTrade"
+                },
+                {
+                  "$ref": "#/components/schemas/RespondTrade"
+                },
+                {
+                  "$ref": "#/components/schemas/ConfirmTrade"
+                },
+                {
+                  "$ref": "#/components/schemas/CancelTrade"
+                },
+                {
+                  "$ref": "#/components/schemas/EndTurn"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "build_city": "#/components/schemas/BuildCity",
+                  "build_road": "#/components/schemas/BuildRoad",
+                  "build_settlement": "#/components/schemas/BuildSettlement",
+                  "buy_dev_card": "#/components/schemas/BuyDevCard",
+                  "cancel_trade": "#/components/schemas/CancelTrade",
+                  "confirm_trade": "#/components/schemas/ConfirmTrade",
+                  "discard": "#/components/schemas/Discard",
+                  "end_turn": "#/components/schemas/EndTurn",
+                  "maritime_trade": "#/components/schemas/MaritimeTrade",
+                  "move_robber": "#/components/schemas/MoveRobber",
+                  "play_knight": "#/components/schemas/PlayKnight",
+                  "play_monopoly": "#/components/schemas/PlayMonopoly",
+                  "play_road_building": "#/components/schemas/PlayRoadBuilding",
+                  "play_year_of_plenty": "#/components/schemas/PlayYearOfPlenty",
+                  "propose_trade": "#/components/schemas/ProposeTrade",
+                  "respond_trade": "#/components/schemas/RespondTrade",
+                  "roll_dice": "#/components/schemas/RollDice"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Legal Actions"
+          },
+          "log": {
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            },
+            "type": "array",
+            "title": "Log"
+          }
+        },
+        "type": "object",
+        "required": [
+          "viewer_id",
+          "players",
+          "board",
+          "node_positions",
+          "edges",
+          "current_player_id",
+          "turn_number",
+          "phase",
+          "dice",
+          "bank",
+          "dev_deck_count",
+          "discards_owed",
+          "free_roads",
+          "dev_card_played",
+          "trade_offer",
+          "trades_left",
+          "longest_road_player_id",
+          "largest_army_player_id",
+          "winner_id",
+          "waiting_on",
+          "legal_actions",
+          "log"
+        ],
+        "title": "GameView",
+        "description": "a game from one seat's point of view.\n\n`legal_actions` never lists discards (there can be thousands of them);\n`discards_owed` says how many cards each player must return instead."
       },
       "HTTPValidationError": {
         "properties": {
@@ -795,6 +1910,536 @@
         ],
         "title": "HealthResponse",
         "description": "Liveness payload for GET /health.\n\nAttributes:\n    status: Service status string."
+      },
+      "HexTile": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "q": {
+            "type": "integer",
+            "title": "Q",
+            "default": 0
+          },
+          "r": {
+            "type": "integer",
+            "title": "R",
+            "default": 0
+          },
+          "resource": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Resource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "number_token": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "HexTile",
+        "description": "one hex on the board, at axial coordinates (q, r).\n\nthe desert has no resource or number token."
+      },
+      "LogEntry": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "turn": {
+            "type": "integer",
+            "title": "Turn"
+          },
+          "player_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "turn",
+          "message"
+        ],
+        "title": "LogEntry",
+        "description": "one line of the public game log; `seq` numbers entries from 0."
+      },
+      "MaritimeTrade": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "maritime_trade",
+            "title": "Type",
+            "default": "maritime_trade"
+          },
+          "give": {
+            "$ref": "#/components/schemas/Resource"
+          },
+          "receive": {
+            "$ref": "#/components/schemas/Resource"
+          }
+        },
+        "type": "object",
+        "required": [
+          "give",
+          "receive"
+        ],
+        "title": "MaritimeTrade",
+        "description": "trade with the bank at 4:1, or at a better port rate."
+      },
+      "MoveRobber": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "move_robber",
+            "title": "Type",
+            "default": "move_robber"
+          },
+          "hex_id": {
+            "type": "integer",
+            "title": "Hex Id"
+          },
+          "victim_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Victim Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hex_id"
+        ],
+        "title": "MoveRobber",
+        "description": "move the robber and steal one card from a player next to its new hex."
+      },
+      "PlayKnight": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "play_knight",
+            "title": "Type",
+            "default": "play_knight"
+          }
+        },
+        "type": "object",
+        "title": "PlayKnight",
+        "description": "play a knight: move the robber and count towards largest army."
+      },
+      "PlayMonopoly": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "play_monopoly",
+            "title": "Type",
+            "default": "play_monopoly"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/Resource"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource"
+        ],
+        "title": "PlayMonopoly",
+        "description": "play monopoly: every other player hands over all of one resource."
+      },
+      "PlayRoadBuilding": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "play_road_building",
+            "title": "Type",
+            "default": "play_road_building"
+          }
+        },
+        "type": "object",
+        "title": "PlayRoadBuilding",
+        "description": "play road building: place two roads for free."
+      },
+      "PlayYearOfPlenty": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "play_year_of_plenty",
+            "title": "Type",
+            "default": "play_year_of_plenty"
+          },
+          "resources": {
+            "prefixItems": [
+              {
+                "$ref": "#/components/schemas/Resource"
+              },
+              {
+                "$ref": "#/components/schemas/Resource"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Resources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resources"
+        ],
+        "title": "PlayYearOfPlenty",
+        "description": "play year of plenty: take any two resources from the bank."
+      },
+      "PlayerView": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "victory_points": {
+            "type": "integer",
+            "title": "Victory Points"
+          },
+          "resource_count": {
+            "type": "integer",
+            "title": "Resource Count"
+          },
+          "dev_card_count": {
+            "type": "integer",
+            "title": "Dev Card Count"
+          },
+          "knights_played": {
+            "type": "integer",
+            "title": "Knights Played"
+          },
+          "longest_road_length": {
+            "type": "integer",
+            "title": "Longest Road Length"
+          },
+          "roads": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Roads"
+          },
+          "settlements": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Settlements"
+          },
+          "cities": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Cities"
+          },
+          "resources": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/Resource"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resources"
+          },
+          "dev_cards": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DevCard"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dev Cards"
+          },
+          "new_dev_cards": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DevCard"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Dev Cards"
+          },
+          "trade_ratios": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/Resource"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Ratios"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "victory_points",
+          "resource_count",
+          "dev_card_count",
+          "knights_played",
+          "longest_road_length",
+          "roads",
+          "settlements",
+          "cities"
+        ],
+        "title": "PlayerView",
+        "description": "one seat as seen by the viewer; hands are private unless it is theirs."
+      },
+      "Port": {
+        "properties": {
+          "resource": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Resource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nodes": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Nodes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nodes"
+        ],
+        "title": "Port",
+        "description": "a harbour on a coastal edge; `resource` None is a generic 3:1 port."
+      },
+      "ProposeTrade": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "propose_trade",
+            "title": "Type",
+            "default": "propose_trade"
+          },
+          "give": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Resource"
+            },
+            "type": "object",
+            "title": "Give"
+          },
+          "receive": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Resource"
+            },
+            "type": "object",
+            "title": "Receive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "give",
+          "receive"
+        ],
+        "title": "ProposeTrade",
+        "description": "offer `give` to the other players in exchange for `receive`."
+      },
+      "Resource": {
+        "type": "string",
+        "enum": [
+          "brick",
+          "lumber",
+          "wool",
+          "grain",
+          "ore"
+        ],
+        "title": "Resource",
+        "description": "the five tradeable resources."
+      },
+      "RespondTrade": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "respond_trade",
+            "title": "Type",
+            "default": "respond_trade"
+          },
+          "accept": {
+            "type": "boolean",
+            "title": "Accept"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accept"
+        ],
+        "title": "RespondTrade",
+        "description": "accept or reject the open trade offer."
+      },
+      "RollDice": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "roll_dice",
+            "title": "Type",
+            "default": "roll_dice"
+          }
+        },
+        "type": "object",
+        "title": "RollDice",
+        "description": "roll both dice to start the main part of the turn."
+      },
+      "TradeOffer": {
+        "properties": {
+          "proposer_id": {
+            "type": "integer",
+            "title": "Proposer Id"
+          },
+          "give": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Resource"
+            },
+            "type": "object",
+            "title": "Give"
+          },
+          "receive": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Resource"
+            },
+            "type": "object",
+            "title": "Receive"
+          },
+          "accepted": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Accepted"
+          },
+          "rejected": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Rejected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proposer_id",
+          "give",
+          "receive"
+        ],
+        "title": "TradeOffer",
+        "description": "a domestic trade the current player has put to the table.\n\n`give` is what the proposer hands over, `receive` what they ask for."
+      },
+      "TurnPhase": {
+        "type": "string",
+        "enum": [
+          "setup_settlement",
+          "setup_road",
+          "roll",
+          "discard",
+          "move_robber",
+          "main",
+          "road_building",
+          "game_over"
+        ],
+        "title": "TurnPhase",
+        "description": "what the game is waiting for."
       },
       "UserRead": {
         "properties": {
@@ -862,6 +2507,12 @@
           "type"
         ],
         "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   }

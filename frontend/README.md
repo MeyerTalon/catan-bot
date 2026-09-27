@@ -25,11 +25,14 @@ frontend/
 │   │   └── client.ts        # openapi-fetch client
 │   ├── components/
 │   │   ├── ui/              # shadcn/ui components (CLI-generated; re-add, don't hand-edit)
-│   │   └── *.tsx            # App-specific shared components (auth shell, hex mark)
+│   │   └── *.tsx            # App-specific components (SVG board, turn panel, player list, …)
 │   ├── lib/
+│   │   ├── game.ts          # Game types from the schema, display constants, board targets
+│   │   ├── route.ts         # Hash routing: #/games/<id> opens a game, anything else the lobby
 │   │   ├── session.ts       # Local session storage for Cognito tokens
+│   │   ├── use-poll.ts      # Poll while the tab is visible
 │   │   └── utils.ts         # shadcn `cn()` helper
-│   ├── screens/             # Auth + game UI
+│   ├── screens/             # Auth, lobby, game room (waiting room + table)
 │   ├── index.css            # Tailwind entry + theme tokens (the only stylesheet)
 │   ├── App.tsx
 │   └── main.tsx
@@ -63,7 +66,7 @@ mise run api
 
 ## Styling
 
-One theme, dark only ("Harbor": blue-grey ground, wheat-gold accent). Every colour, radius, and font is a CSS variable in `src/index.css` (`:root` block); components reference only the shadcn token names (`bg-background`, `text-muted-foreground`, `bg-primary`, …), so a theme change is a one-block edit. `<html class="dark">` in `index.html` turns on the components' `dark:` variants. Fonts are self-hosted via `@fontsource-variable/*` (Instrument Sans for text, Bricolage Grotesque for headings via `font-heading`).
+One theme, dark only ("Harbor": blue-grey ground, wheat-gold accent). Resource colours are `--chart-1..5`; the board also uses `--sea`, `--desert`, and one colour per seat (`--player-1..4`). Every colour, radius, and font is a CSS variable in `src/index.css` (`:root` block); components reference only the shadcn token names (`bg-background`, `text-muted-foreground`, `bg-primary`, …), so a theme change is a one-block edit. `<html class="dark">` in `index.html` turns on the components' `dark:` variants. Fonts are self-hosted via `@fontsource-variable/*` (Instrument Sans for text, Bricolage Grotesque for headings via `font-heading`).
 
 Import project modules through the `@/` alias (`@/components/ui/button`, `@/lib/session`); it is configured in `tsconfig.json` and `vite.config.ts`.
 

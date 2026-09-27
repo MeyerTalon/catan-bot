@@ -18,7 +18,7 @@ from app import models as _models  # noqa: F401  # register metadata for alembic
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 
-# larger than any legitimate request (a game state is capped at 64 KB) and
+# far larger than any legitimate request (the biggest is a game action) and
 # small enough that a flood of bodies cannot exhaust the task's memory
 MAX_BODY_BYTES = 1024 * 1024
 
@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
     Registers lifespan, CORS (only for the origins in CORS_ALLOWED_ORIGINS; in
     production the api is same-origin behind CloudFront and needs none), a
     request body size cap, and the v1 API router (health, auth, users, game
-    sessions). The OpenAPI schema at /openapi.json is the source of truth for
+    games). The OpenAPI schema at /openapi.json is the source of truth for
     frontend wire types.
 
     Returns:

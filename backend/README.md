@@ -1,6 +1,6 @@
 # Catan Backend
 
-FastAPI backend for the Catan app. Uses **RDS Postgres** (SQLAlchemy + Alembic) and **Amazon Cognito** for authentication. Login/signup are proxied through this API; user profiles and game sessions live in Postgres.
+FastAPI backend for the Catan app. Uses **RDS Postgres** (SQLAlchemy + Alembic) and **Amazon Cognito** for authentication. Login/signup are proxied through this API; user profiles and games live in Postgres. Game rules come from the `engine` workspace member (`../engine`).
 
 ## Tech stack
 
@@ -29,7 +29,7 @@ backend/
 │   ├── core/                # config, security
 │   ├── crud/                # DB operations (user, game)
 │   ├── db/                  # engine, session
-│   ├── models/              # SQLAlchemy models (User, GameSession)
+│   ├── models/              # SQLAlchemy models (User, Game, GamePlayer)
 │   ├── schemas/             # Pydantic request/response schemas
 │   └── services/            # auth_service, user_service, game_service
 ├── scripts/
@@ -60,10 +60,20 @@ Auth routes are rate limited per client IP (10/min for credential routes, 30/min
 
 - **`GET /users/{user_id}`** – Get a user by UUID. **Protected**. Users can only access their own profile. Rows are created by signup/login; there is no public create route.
 
-### Game sessions
+### Games
 
-- **`POST /users/{user_id}/sessions`** – Create a game session. **Protected**.
-- **`GET /users/{user_id}/sessions`** – List sessions, newest first. **Protected**.
+A game is a lobby until its host starts it; then it holds a serialized engine `GameState`. Bots are seats with no user: after every human move the server lets them play (a random legal move each) until the game waits on a human again. Clients poll `GET /games/{game_id}`; `version` bumps on every change.
+
+- **`GET /games`** – The user's games (`mine`) and joinable lobbies (`open`). **Protected**.
+- **`POST /games`** – Open a lobby with `max_players` (2-4) and optional `bots`; the host takes seat 1. **Protected**.
+- **`GET /games/{game_id}`** – The game plus the user's `view` of it: board, public player info, their own hand, legal actions, and the log. Anyone signed in may watch; only seated players see a hand. **Protected**.
+- **`POST /games/{game_id}/join`** – Take a free seat in a lobby. **Protected**.
+- **`POST /games/{game_id}/leave`** – Leave. In a lobby the seat is freed (the host leaving closes it); in a running game a bot takes the seat over. **Protected**.
+- **`POST /games/{game_id}/bots`** / **`DELETE /games/{game_id}/seats/{seat}`** – Host adds a bot / removes a seat in the lobby. **Protected**.
+- **`POST /games/{game_id}/start`** – Host starts with two or more seated; seating order is shuffled. **Protected**.
+- **`POST /games/{game_id}/actions`** – Make a move (`{"action": {"type": "roll_dice"}}`, …). `400` with the reason when it is illegal. **Protected**.
+
+Moves on one game are serialized with a row lock, so simultaneous moves (two players discarding) apply one after the other.
 
 Protected endpoints require:
 
@@ -71,7 +81,7 @@ Protected endpoints require:
 Authorization: Bearer <cognito-access-token>
 ```
 
-The backend validates the JWT against the Cognito JWKS (RS256, issuer, `exp`/`iat`/`sub` required, `token_use` must be `access`, `client_id` must be this app client — id tokens are rejected), extracts `sub`, and ensures users can only access their own resources. Request bodies over 1 MB are rejected with `413`; a game session `state` is capped at 64 KB.
+The backend validates the JWT against the Cognito JWKS (RS256, issuer, `exp`/`iat`/`sub` required, `token_use` must be `access`, `client_id` must be this app client — id tokens are rejected), extracts `sub`, and ensures users can only act in their own seats and profile. Request bodies over 1 MB are rejected with `413`.
 
 ## Configuration
 

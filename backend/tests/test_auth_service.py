@@ -332,3 +332,14 @@ def test_refresh_echoes_refresh_token(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert session.refresh_token == 'old-refresh'
     assert uuid.UUID(session.user.id)
+
+
+def test_display_name_never_stores_an_email() -> None:
+    assert auth_mod._display_name(AuthUser(id=USER_ID, username='Ada')) == 'Ada'
+    assert (
+        auth_mod._display_name(
+            AuthUser(id=USER_ID, email='a@b.com', username='a@b.com')
+        )
+        is None
+    )
+    assert auth_mod._display_name(AuthUser(id=USER_ID, username='  ')) is None
