@@ -10,7 +10,7 @@ terraform/
 ├── modules/          reusable building blocks, no environment knowledge
 │   ├── network/      VPC, 2 public subnets, IGW
 │   ├── database/     RDS Postgres (single-AZ, private) + SSM parameter with DATABASE_URL
-│   ├── bastion/      t4g.nano reachable only through SSM Session Manager; port-forward path to RDS
+│   ├── bastion/      t3.micro reachable only through SSM Session Manager; port-forward path to RDS
 │   ├── auth/         Cognito user pool + app client
 │   ├── backend-service/  ECR, ECS Fargate (1 task), ALB, IAM, logs
 │   ├── static-site/  S3 + CloudFront (OAC, SPA fallback, /api/* → ALB)
@@ -142,7 +142,7 @@ The deploy role can push images, roll the service, and sync the frontend — not
 
 ## Database access from your machine
 
-RDS has no public IP and its security group admits only the backend task and the bastion. The bastion (`modules/bastion`) is a `t4g.nano` with **no inbound rules and no key pair**: its SSM agent dials out to Session Manager, and your AWS credentials authorise a port forward through it. Nothing in the config references your IP, so there is nothing to update when it changes; every session is logged in CloudTrail under your IAM principal.
+RDS has no public IP and its security group admits only the backend task and the bastion. The bastion (`modules/bastion`) is a `t3.micro` with **no inbound rules and no key pair**: its SSM agent dials out to Session Manager, and your AWS credentials authorise a port forward through it. Nothing in the config references your IP, so there is nothing to update when it changes; every session is logged in CloudTrail under your IAM principal.
 
 ```bash
 mise run db:tunnel        # localhost:5432 → RDS; leave it running, Ctrl-C to close
@@ -165,6 +165,8 @@ psql "postgresql://catan:<password>@localhost:5432/catan?sslmode=verify-ca&sslro
 ```
 
 First-time check after an apply: `aws ssm describe-instance-information` should list the instance with `PingStatus: Online` a minute or two after boot. If it never appears, the cause is the instance profile or the 443 egress rule — nothing else.
+
+The instance is `t3.micro` (x86_64) because this account is on the **AWS free plan**, which rejects anything outside a short allowlist with `InvalidParameterCombination: The specified instance type is not eligible for Free Tier`. Graviton `t4g.nano` and `t4g.micro` both fail that check even though `describe-instance-types --filters Name=free-tier-eligible,Values=true` lists `t4g.micro`, and `run-instances --dry-run` does not evaluate the rule — so the only reliable test is a real launch. Don't switch the type to save the ~$1.50/month without one. `aws freetier get-account-plan-state` shows the plan type, remaining credits, and expiry.
 
 ## Day-to-day
 
