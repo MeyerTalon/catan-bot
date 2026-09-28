@@ -4,7 +4,7 @@ output "frontend_url" {
 }
 
 output "backend_url" {
-  description = "Public API base URL (through CloudFront). Bake into the frontend as VITE_BACKEND_URL."
+  description = "Public API base URL (through CloudFront). The frontend build uses the relative /api instead, so it works on every hostname."
   value       = module.frontend.api_url
 }
 
