@@ -80,7 +80,7 @@ pnpm dlx shadcn@latest add dialog
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_BACKEND_URL` | Backend origin (default in code: `http://localhost:8000`). |
+| `VITE_BACKEND_URL` | Backend base URL, absolute or relative to the page (default in code: `http://localhost:8000`). |
 
 Create `frontend/.env.local` for local development:
 
@@ -88,7 +88,7 @@ Create `frontend/.env.local` for local development:
 VITE_BACKEND_URL=http://localhost:8000
 ```
 
-Production builds in CI use the `VITE_BACKEND_URL` GitHub secret (ALB URL).
+Production builds in CI use the `VITE_BACKEND_URL` variable on the `production` GitHub environment, set to `/api`: CloudFront serves the API from the same distribution, and the site's CSP (`connect-src 'self'`) blocks any other origin.
 
 ## Running
 

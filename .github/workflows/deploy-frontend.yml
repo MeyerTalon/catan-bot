@@ -4,7 +4,7 @@
 #
 # Environment variables (Settings → Environments → production → Variables):
 #   AWS_REGION, AWS_DEPLOY_ROLE_ARN, FRONTEND_BUCKET, CLOUDFRONT_DISTRIBUTION_ID,
-#   VITE_BACKEND_URL (the terraform `backend_url` output: https://<cloudfront>/api)
+#   VITE_BACKEND_URL (/api — relative, so every hostname on the distribution works)
 name: Deploy frontend
 
 on:

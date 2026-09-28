@@ -96,7 +96,7 @@ Logs: `aws logs tail "$($OUT log_group_name)" --follow`.
 From `frontend/`:
 
 ```bash
-export VITE_BACKEND_URL="$(terraform -chdir=../terraform/envs/prod output -raw backend_url)"
+export VITE_BACKEND_URL=/api  # relative: same distribution, works on every hostname
 npm run build
 aws s3 sync dist/ "s3://$(terraform -chdir=../terraform/envs/prod output -raw frontend_bucket)" --delete
 aws cloudfront create-invalidation \
@@ -113,7 +113,7 @@ The site works on `*.cloudfront.net` with no domain. To serve it on your own, re
 2. In `envs/prod/main.tf` locals set `domain` (e.g. `example.com`) and `cloudflare_zone_id` (Cloudflare dashboard → the domain → Overview; not a secret).
 3. Plan and apply. Terraform requests an ACM certificate for the apex and `www` in `us-east-1` (the only region CloudFront reads certificates from), writes its validation CNAMEs to Cloudflare, waits for issuance (a few minutes), adds both hostnames as distribution aliases, and points `@` and `www` at the distribution with CNAMEs (Cloudflare flattens the apex).
 4. Every record is DNS-only (grey cloud) — keep it that way; proxying would stack Cloudflare's CDN on CloudFront. If the zone has CAA records, one must allow `amazon.com`.
-5. `frontend_url` / `backend_url` now report the custom domain. Update `VITE_BACKEND_URL` on `production` if it holds the old hostname, then redeploy the frontend. The `*.cloudfront.net` URL keeps working.
+5. `frontend_url` / `backend_url` now report the custom domain. `VITE_BACKEND_URL` should be the relative `/api` (step 6); if it still holds an absolute `https://<cloudfront>/api`, change it and redeploy the frontend, or the CSP (`connect-src 'self'`) blocks every API call from the new hostname. The `*.cloudfront.net` URL keeps working.
 
 Note the response headers policy sends HSTS with `includeSubDomains`, so every subdomain of the domain must serve HTTPS.
 
@@ -140,7 +140,7 @@ With a custom domain, also add the `CLOUDFLARE_API_TOKEN` **secret** to both env
 | `ECS_SERVICE` | `ecs_service_name` |
 | `FRONTEND_BUCKET` | `frontend_bucket` |
 | `CLOUDFRONT_DISTRIBUTION_ID` | `cloudfront_distribution_id` |
-| `VITE_BACKEND_URL` | `backend_url` (`https://<cloudfront>/api`) |
+| `VITE_BACKEND_URL` | `/api` — relative, so the build works on the custom domain, `www`, and `*.cloudfront.net` alike (an absolute URL breaks on every other hostname under the CSP's `connect-src 'self'`) |
 
 Workflows (Actions tab → Run workflow):
 
