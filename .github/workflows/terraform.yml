@@ -7,6 +7,8 @@
 # The bootstrap apply role trusts both via OIDC.
 #
 # Environment variables (set on BOTH environments): AWS_REGION, AWS_TERRAFORM_APPLY_ROLE_ARN
+# Environment secret (set on BOTH, once the prod custom domain is on):
+#   CLOUDFLARE_API_TOKEN  DNS edit on that one zone
 name: Terraform
 
 on:
@@ -49,6 +51,8 @@ jobs:
       - name: Init
         run: terraform init -backend-config=backend.hcl
       - name: Plan
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: terraform plan -no-color -out=tfplan | tee plan.txt
       - name: Summary
         run: |
@@ -98,4 +102,6 @@ jobs:
       - name: Init
         run: terraform init -backend-config=backend.hcl
       - name: Apply the approved plan
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: terraform apply -no-color tfplan

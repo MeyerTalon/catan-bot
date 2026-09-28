@@ -14,6 +14,23 @@ variable "force_destroy" {
   default     = false
 }
 
+variable "aliases" {
+  description = "Custom hostnames the distribution answers on (e.g. example.com, www.example.com). Empty serves only *.cloudfront.net. Requires acm_certificate_arn."
+  type        = list(string)
+  default     = []
+}
+
+variable "acm_certificate_arn" {
+  description = "Validated ACM certificate in us-east-1 (CloudFront only reads certificates from there) covering every alias. Null uses the default *.cloudfront.net certificate."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = (var.acm_certificate_arn == null) == (length(var.aliases) == 0)
+    error_message = "Set acm_certificate_arn exactly when aliases is non-empty."
+  }
+}
+
 variable "enable_api_origin" {
   description = "Proxy api_path_prefix to api_origin_domain_name. Must be a literal bool so CloudFront count/for_each is known at plan time; do not derive it from the hostname."
   type        = bool

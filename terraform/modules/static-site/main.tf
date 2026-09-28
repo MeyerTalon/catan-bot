@@ -2,12 +2,14 @@
 # Vite/React single-page app (403/404 rewrite to index.html). Optionally the
 # same distribution proxies /api/* to an HTTP origin (the backend ALB), which
 # gives the API free TLS and the same origin as the frontend — no CORS, no
-# mixed-content, no certificate or domain needed.
+# mixed-content. A custom domain is optional: pass aliases plus a us-east-1
+# ACM certificate; DNS for it lives with the env (the registrar's zone).
 
 locals {
   s3_origin_id  = "s3-${var.name}"
   api_origin_id = "api-${var.name}"
   api_enabled   = var.enable_api_origin
+  site_host     = length(var.aliases) > 0 ? var.aliases[0] : aws_cloudfront_distribution.this.domain_name
 }
 
 data "aws_cloudfront_cache_policy" "caching_optimized" {
@@ -167,6 +169,7 @@ resource "aws_cloudfront_distribution" "this" {
   default_root_object = "index.html"
   comment             = var.name
   price_class         = "PriceClass_100" # north america + europe edges only
+  aliases             = var.aliases
 
   origin {
     domain_name              = aws_s3_bucket.this.bucket_regional_domain_name
@@ -238,7 +241,11 @@ resource "aws_cloudfront_distribution" "this" {
     }
   }
 
+  # sni-only is free; a dedicated-ip certificate costs $600/month
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = var.acm_certificate_arn == null
+    acm_certificate_arn            = var.acm_certificate_arn
+    ssl_support_method             = var.acm_certificate_arn == null ? null : "sni-only"
+    minimum_protocol_version       = var.acm_certificate_arn == null ? null : "TLSv1.2_2021"
   }
 }
