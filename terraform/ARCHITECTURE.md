@@ -58,6 +58,7 @@ The only way in from a laptop is the bastion: a `t3.micro` in AZ-a with no inbou
 | DB access | 1 × public IPv4 on the bastion | agent reaches SSM without a NAT or 3 × VPC endpoints ($21) | 3.65 |
 | DB access | 8 GB gp3 root volume | | 0.64 |
 | Auth | Cognito user pool + app client | ≤10 000 MAU | 0.00 |
+| Domain (optional) | ACM certificate in us-east-1 + Cloudflare DNS records (off until `local.domain` is set) | custom hostname on CloudFront; the domain is registered with Cloudflare, which keeps DNS, so no Route 53 zone | 0.00 (registration ≈ $10/year at Cloudflare) |
 | Network | VPC, 2 public subnets, IGW, route table, SGs | | 0.00 |
 | Bootstrap | S3 state bucket, GitHub OIDC provider, 2 IAM roles, AWS Budget alert | | ~0.00 |
 | | **Total** | | **≈ 56** |
@@ -68,7 +69,7 @@ The only way in from a laptop is the bastion: a `t3.micro` in AZ-a with no inbou
 
 ## Not included, on purpose
 
-NAT gateway ($32), Multi-AZ RDS (2×), private subnets, autoscaling, Secrets Manager ($0.40/secret), Container Insights, WAF ($5 + $1/rule), Route 53 / custom domain ($0.50/zone), ACM cert on the ALB (needs a domain), VPC endpoints ($7 each; the bastion reaches SSM over its public IP instead). Add any of them later in `envs/prod/main.tf`; none require re-architecting.
+NAT gateway ($32), Multi-AZ RDS (2×), private subnets, autoscaling, Secrets Manager ($0.40/secret), Container Insights, WAF ($5 + $1/rule), Route 53 ($0.50/zone; the custom domain uses Cloudflare DNS instead), ACM cert on the ALB (needs a domain), VPC endpoints ($7 each; the bastion reaches SSM over its public IP instead). Add any of them later in `envs/prod/main.tf`; none require re-architecting.
 
 ## Terraform shape
 

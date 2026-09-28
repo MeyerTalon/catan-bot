@@ -14,6 +14,12 @@ locals {
 
   # set to "" to skip the GitHub Actions deploy role
   github_repository = "MeyerTalon/catan-bot"
+
+  # custom domain registered with cloudflare; "" serves only *.cloudfront.net.
+  # the zone id is on the cloudflare dashboard (domain → overview), not a secret
+  domain             = "catanbot.ai"
+  cloudflare_zone_id = "4b11b7666665ed015a1c0cf4553a9f3b"
+  site_hostnames     = local.domain != "" ? [local.domain, "www.${local.domain}"] : []
 }
 
 data "aws_caller_identity" "current" {}
@@ -140,6 +146,63 @@ module "frontend" {
   api_origin_domain_name    = module.backend.alb_dns_name
   api_path_prefix           = "/api"
   api_origin_custom_headers = module.backend.origin_verify_header
+
+  aliases             = local.site_hostnames
+  acm_certificate_arn = local.domain != "" ? aws_acm_certificate_validation.site[0].certificate_arn : null
+}
+
+# ---------------------------------------------------------------------------
+# custom domain (acm certificate + cloudflare dns)
+# ---------------------------------------------------------------------------
+
+resource "aws_acm_certificate" "site" {
+  count    = local.domain != "" ? 1 : 0
+  provider = aws.us_east_1
+
+  domain_name               = local.domain
+  subject_alternative_names = [for h in local.site_hostnames : h if h != local.domain]
+  validation_method         = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# records must stay dns-only (grey cloud): proxying would put cloudflare's cdn
+# in front of cloudfront and hide the validation cname from acm
+resource "cloudflare_dns_record" "cert_validation" {
+  for_each = local.domain != "" ? {
+    for o in aws_acm_certificate.site[0].domain_validation_options : o.domain_name => o
+  } : {}
+
+  zone_id = local.cloudflare_zone_id
+  name    = trimsuffix(each.value.resource_record_name, ".")
+  type    = each.value.resource_record_type
+  content = trimsuffix(each.value.resource_record_value, ".")
+  ttl     = 1 # automatic
+  proxied = false
+}
+
+resource "aws_acm_certificate_validation" "site" {
+  count    = local.domain != "" ? 1 : 0
+  provider = aws.us_east_1
+
+  certificate_arn         = aws_acm_certificate.site[0].arn
+  validation_record_fqdns = [for o in aws_acm_certificate.site[0].domain_validation_options : o.resource_record_name]
+
+  depends_on = [cloudflare_dns_record.cert_validation]
+}
+
+# cloudflare flattens the apex cname into a/aaaa answers
+resource "cloudflare_dns_record" "site" {
+  for_each = toset(local.site_hostnames)
+
+  zone_id = local.cloudflare_zone_id
+  name    = each.value
+  type    = "CNAME"
+  content = module.frontend.distribution_domain_name
+  ttl     = 1 # automatic
+  proxied = false
 }
 
 # ---------------------------------------------------------------------------
