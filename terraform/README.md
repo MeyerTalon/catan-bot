@@ -206,11 +206,17 @@ Each environment is its own VPC and state file; only the bootstrap bucket and OI
 
 ## Destroy
 
+Prod is protected by default: RDS `deletion_protection` + a final snapshot, Cognito `deletion_protection`, frontend bucket `force_destroy = false`. All of these follow one variable, `allow_destroy` (default `false`), in `envs/prod`.
+
+From GitHub: dispatch **Terraform Destroy** (`terraform-destroy.yml`), type `destroy prod` to confirm, read the destroy plan in the job summary, then approve the `production` environment. The job applies `allow_destroy=true` to the protected resources, then destroys everything in one sweep. **No final snapshot is kept**: the database, Cognito users and uploaded frontend are gone.
+
+Locally, the same two steps:
+
 ```bash
-cd terraform
-make destroy ENV=prod
+cd terraform/envs/prod
+terraform init -backend-config=backend.hcl
+terraform apply -var allow_destroy=true -target=module.database.aws_db_instance.this -target=module.auth.aws_cognito_user_pool.this -target=module.frontend.aws_s3_bucket.this
+terraform destroy -var allow_destroy=true
 ```
 
-Or from GitHub: dispatch **Terraform Destroy** (`terraform-destroy.yml`), type `destroy prod` to confirm, read the destroy plan in the job summary, then approve the `production` environment.
-
-Prod defaults protect data: RDS `deletion_protection = true` / `skip_final_snapshot = false`, Cognito `deletion_protection = true`, frontend bucket `force_destroy = false`. Flip them in `envs/prod/main.tf`, apply, then destroy. The bootstrap bucket has `prevent_destroy`; empty and delete it by hand if you leave the account.
+The next **Terraform Plan & Apply** run rebuilds the stack with protection back on. The bootstrap bucket has `prevent_destroy`; empty and delete it by hand if you leave the account.

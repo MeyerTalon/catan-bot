@@ -55,8 +55,10 @@ module "database" {
   ssl_root_cert_path = "/app/rds-global-bundle.pem" # shipped by backend/Dockerfile
   # free-plan accounts reject >1 day (FreeTierRestrictionError)
   backup_retention_days = 1
-  deletion_protection   = true
-  skip_final_snapshot   = false
+  # protected unless terraform-destroy.yml flips allow_destroy; no final
+  # snapshot then, so repeated destroy/rebuild cycles never collide on its name
+  deletion_protection = !var.allow_destroy
+  skip_final_snapshot = var.allow_destroy
 }
 
 # ---------------------------------------------------------------------------
@@ -87,7 +89,7 @@ module "auth" {
 
   name                   = local.name
   generate_client_secret = false
-  deletion_protection    = true
+  deletion_protection    = !var.allow_destroy
 }
 
 # ---------------------------------------------------------------------------
@@ -140,7 +142,7 @@ module "frontend" {
 
   name          = "${local.name}-frontend"
   bucket_name   = "${local.name}-frontend-${data.aws_caller_identity.current.account_id}"
-  force_destroy = false
+  force_destroy = var.allow_destroy # empties the bucket on destroy
 
   enable_api_origin         = true
   api_origin_domain_name    = module.backend.alb_dns_name

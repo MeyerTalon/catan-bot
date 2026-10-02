@@ -5,10 +5,13 @@
 #   production       required reviewers — the destroy waits for approval
 # The bootstrap stack (state bucket, OIDC, apply role, budget) is not touched.
 #
-# Prod keeps deletion protection on: RDS (deletion_protection, final snapshot),
-# Cognito (deletion_protection) and the frontend bucket (force_destroy = false).
-# Flip those in terraform/envs/prod/main.tf and apply them through terraform.yml
-# first, otherwise the destroy fails part-way on those resources.
+# Prod resources are protected by default (RDS deletion protection + final
+# snapshot, Cognito deletion protection, frontend bucket force_destroy off).
+# After approval the destroy job applies -var allow_destroy=true to just those
+# resources, which lifts the protection, skips the RDS final snapshot and lets
+# terraform empty the bucket, then destroys the whole stack in one sweep. All
+# data (database, users, uploaded frontend) is gone afterwards. The next
+# terraform.yml run (allow_destroy defaults to false) protects them again.
 #
 # Environment variables (set on BOTH environments): AWS_REGION, AWS_TERRAFORM_APPLY_ROLE_ARN
 # Environment secret (set on BOTH, once the prod custom domain is on):
@@ -54,10 +57,12 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
       - name: Init
         run: terraform init -backend-config=backend.hcl
+      # review only: the destroy job re-plans after lifting protection, so a
+      # saved plan from here would already be stale
       - name: Plan destroy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: terraform plan -destroy -no-color -out=tfplan | tee plan.txt
+        run: terraform plan -destroy -no-color -var allow_destroy=true | tee plan.txt
       - name: Summary
         run: |
           {
@@ -72,14 +77,6 @@ jobs:
             echo '```'
             echo '</details>'
           } >> "$GITHUB_STEP_SUMMARY"
-      # the plan file contains state values (including the db password);
-      # keep it only long enough for the destroy job to pick it up
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: tfplan-destroy-prod
-          path: terraform/envs/prod/tfplan
-          retention-days: 1
-          if-no-files-found: error
 
   destroy:
     needs: plan
@@ -97,13 +94,20 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: tfplan-destroy-prod
-          path: terraform/envs/prod
       - name: Init
         run: terraform init -backend-config=backend.hcl
-      - name: Apply the approved destroy plan
+      # destroy reads protection from state, so it has to be lifted there
+      # first; -target keeps this apply away from everything else
+      - name: Lift deletion protection
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: terraform apply -no-color tfplan
+        run: >-
+          terraform apply -no-color -auto-approve -var allow_destroy=true
+          -target=module.database.aws_db_instance.this
+          -target=module.auth.aws_cognito_user_pool.this
+          -target=module.frontend.aws_s3_bucket.this
+      # approval on the production environment is the human gate
+      - name: Destroy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: terraform destroy -no-color -auto-approve -var allow_destroy=true
