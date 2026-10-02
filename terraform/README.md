@@ -125,8 +125,8 @@ Create two environments (Settings → Environments):
 
 | Environment | Deployment branches | Required reviewers | Used by |
 |---|---|---|---|
-| `production` | `main` only | yes (you) | `deploy-backend.yml`, `deploy-frontend.yml`, `deploy.yml`, the **apply** job of `terraform.yml` |
-| `production-plan` | `main` only | no | the **plan** job of `terraform.yml` (so the plan runs without approval and you approve the apply after reading it) |
+| `production` | `main` only | yes (you) | `deploy-backend.yml`, `deploy-frontend.yml`, `deploy.yml`, the **apply** job of `terraform.yml`, the **destroy** job of `terraform-destroy.yml` |
+| `production-plan` | `main` only | no | the **plan** jobs of `terraform.yml` and `terraform-destroy.yml` (so the plan runs without approval and you approve the apply after reading it) |
 
 With a custom domain, also add the `CLOUDFLARE_API_TOKEN` **secret** to both environments (see *Custom domain* above). Then set these **environment variables** (none are secret) on `production`; the two `AWS_*` ones also on `production-plan`:
 
@@ -210,5 +210,7 @@ Each environment is its own VPC and state file; only the bootstrap bucket and OI
 cd terraform
 make destroy ENV=prod
 ```
+
+Or from GitHub: dispatch **Terraform Destroy** (`terraform-destroy.yml`), type `destroy prod` to confirm, read the destroy plan in the job summary, then approve the `production` environment.
 
 Prod defaults protect data: RDS `deletion_protection = true` / `skip_final_snapshot = false`, Cognito `deletion_protection = true`, frontend bucket `force_destroy = false`. Flip them in `envs/prod/main.tf`, apply, then destroy. The bootstrap bucket has `prevent_destroy`; empty and delete it by hand if you leave the account.
