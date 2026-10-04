@@ -128,3 +128,4 @@ Shared skills (each `SKILL.md` frontmatter is the source of truth for triggers a
 - `push` — commit and push the current branch after the task (never from `main`)
 - `python-coding` — repo Python style and test expectations; applies to all `.py` work
 - `terraform-coding` — module/env layout, style, and apply/destroy safety rules; applies to all `.tf`/`.hcl` work under `terraform/`
+- `show-me` — explain the current topic with diagrams and focused HTML artifacts; explicit invocation only

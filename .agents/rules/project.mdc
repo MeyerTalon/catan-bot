@@ -12,3 +12,4 @@ alwaysApply: true
 - When the user invokes `/push` or attaches the push skill, read and follow `.agents/skills/push/SKILL.md` after the task (or immediately if push is the only request).
 - When writing, editing, refactoring, or reviewing Python (including implicit `.py` work, or `/python-coding`), read and follow `.agents/skills/python-coding/SKILL.md`.
 - When writing, editing, reviewing, or planning Terraform / AWS infrastructure (including implicit `.tf`/`.hcl` work under `terraform/`, or `/terraform-coding`), read and follow `.agents/skills/terraform-coding/SKILL.md`.
+- When the user invokes `/show-me`, read and follow `.agents/skills/show-me/SKILL.md`.
